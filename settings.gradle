@@ -1,0 +1,3 @@
+rootProject.name = 'booking-app'
+include("gateway-service")
+include("core")
