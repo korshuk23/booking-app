@@ -1,6 +1,13 @@
 server:
   port: 4000
-
+springdoc:
+  swagger-ui:
+    # Путь, по которому будет доступен Swagger
+    path: /swagger-ui.html
+    # Включаем выбор разных сервисов
+    urls:
+      - name: Gateway Service
+        url: /v3/api-docs
 spring:
   application:
     name: gateway-service
