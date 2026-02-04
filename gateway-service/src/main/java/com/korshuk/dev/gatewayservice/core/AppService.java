@@ -1,6 +1,5 @@
-package com.korshuk.dev.gatewayservice.service;
+package com.korshuk.dev.gatewayservice.core;
 
-import com.korshuk.dev.gatewayservice.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

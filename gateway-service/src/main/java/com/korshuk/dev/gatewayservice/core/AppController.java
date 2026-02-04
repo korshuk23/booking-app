@@ -1,6 +1,5 @@
-package com.korshuk.dev.gatewayservice.controller;
+package com.korshuk.dev.gatewayservice.core;
 
-import com.korshuk.dev.gatewayservice.service.AppService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping
 @RequiredArgsConstructor
-@Tag(name = "TeaCinema API", description = "API gateway for TeaCinema microservices")
+@Tag(name = "App", description = "API gateway for TeaCinema microservices")
 public class AppController {
     private final AppService service;
 
