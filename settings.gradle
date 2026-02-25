@@ -1,3 +1,4 @@
 rootProject.name = 'booking-app'
-include("gateway-service")
-include("core")
+include(":core")
+include(":gateway-service")
+include(":auth-service")

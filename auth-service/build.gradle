@@ -1,0 +1,22 @@
+plugins {
+    id("java")
+    id("org.springframework.boot")
+}
+
+description = 'auth-service'
+
+
+dependencies {
+    // Подключаем наш общий модуль
+    implementation(project(":core"))
+
+    // Web и БД
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.postgresql:postgresql")
+
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

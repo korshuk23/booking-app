@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping
 @Slf4j
 @Tag(name = "Auth")
+
+//TODO delete
 public class AuthController {
     @PostMapping("otp/send")
     public HttpStatus sendOtp(SendOtpRequest dto) {
