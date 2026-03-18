@@ -1,5 +1,17 @@
 server:
   port: 5000
 spring:
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  application:
+    name: auth-service
+    datasource:
+      url: jdbc:postgresql://localhost:5432/booking_db
+      username: postgres
+      password: your_password
+    jpa:
+      hibernate:
+        ddl-auto: update
+
+  # Настройки gRPC сервера
+  grpc:
+    server:
+      port: 9091

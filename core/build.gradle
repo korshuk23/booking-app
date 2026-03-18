@@ -1,17 +1,30 @@
 plugins {
-    id('org.springframework.boot')
     id("java-library")
     id("com.google.protobuf") version "0.9.4"
 }
 
-description = 'core'
+description = 'Shared gRPC Contracts'
+
+// Этот блок заставит Gradle перестать искать зависимости Spring Boot в тестах core
+configurations {
+    testCompileProtoPath {
+        exclude group: 'org.springframework.boot'
+    }
+}
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter")
+    // Необходимые аннотации для генерации кода
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
+    implementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
+
+    // gRPC зависимости
     implementation('io.grpc:grpc-netty-shaded:1.69.0')
     implementation("io.grpc:grpc-protobuf:1.69.0")
     implementation("io.grpc:grpc-stub:1.69.0")
-    compileOnly("javax.annotation:javax.annotation-api:1.3.2")
+
+    // Чистый JUnit для тестов, без Spring
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
 protobuf {
@@ -19,19 +32,24 @@ protobuf {
         artifact = "com.google.protobuf:protoc:3.25.1"
     }
     plugins {
-        register("grpc") {
+        create("grpc") {
             artifact = "io.grpc:protoc-gen-grpc-java:1.69.0"
         }
     }
     generateProtoTasks {
         all().forEach { task ->
             task.plugins {
-                register("grpc")
+                create("grpc")
             }
         }
     }
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+sourceSets {
+    main {
+        java {
+            srcDirs("build/generated/source/proto/main/grpc")
+            srcDirs("build/generated/source/proto/main/java")
+        }
+    }
 }

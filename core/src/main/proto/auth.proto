@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package com.korshuk.dev.core;
+
+// Опции для генерации Java кода
+option java_multiple_files = true;
+option java_package = "com.korshuk.dev.core.grpc";
+
+// Описываем сервис, который будет "слушать" запросы от других микросервисов
+service AuthService {
+  // Метод для проверки токена (другие сервисы будут его вызывать)
+  rpc ValidateToken (TokenRequest) returns (TokenResponse);
+}
+
+message TokenRequest {
+  string accessToken = 1;
+}
+
+message TokenResponse {
+  string userId = 1;
+  bool isValid = 2;
+}
