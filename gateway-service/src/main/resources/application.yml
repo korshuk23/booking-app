@@ -29,7 +29,7 @@ spring:
 
         # ДОБАВЬ ЭТОТ БЛОК:
         - id: movie-service
-          uri: http://localhost:8084 # Неважно, что там пусто
+          uri: http://localhost:8083 # Неважно, что там пусто
           predicates:
             - Path=/api/v1/movies/**
 

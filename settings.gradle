@@ -2,3 +2,4 @@ rootProject.name = 'booking-app'
 include(":core")
 include(":gateway-service")
 include(":auth-service")
+include(":movie-service")
