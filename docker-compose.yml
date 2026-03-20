@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  # Наша база данных
+  postgres-db:
+    image: postgres:15
+    container_name: teacinema-db
+    environment:
+      POSTGRES_DB: teacinema_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # В будущем сюда добавим auth-service, gateway и т.д.
+  # пока оставляем только БД, чтобы ты мог запустить приложение из IDEA
+
+volumes:
+  postgres_data:

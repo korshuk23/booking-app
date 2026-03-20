@@ -1,17 +1,23 @@
 server:
-  port: 5000
+  port: 8081 # Рекомендую 8081, 5000 часто занят системой
+
 spring:
   application:
     name: auth-service
-    datasource:
-      url: jdbc:postgresql://localhost:5432/booking_db
-      username: postgres
-      password: your_password
-    jpa:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/teacinema_db
+    username: postgres
+    password: your_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
       hibernate:
-        ddl-auto: update
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  # Настройки gRPC сервера
-  grpc:
-    server:
-      port: 9091
+# gRPC должен быть на самом верхнем уровне, а не внутри spring
+grpc:
+  server:
+    port: 9091
