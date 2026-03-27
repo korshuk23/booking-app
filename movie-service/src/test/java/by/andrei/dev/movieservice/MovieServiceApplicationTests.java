@@ -1,10 +1,10 @@
-package com.korshuk.dev.gatewayservice;
+package by.andrei.dev.movieservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class GatewayServiceApplicationTests {
+class MovieServiceApplicationTests {
 
     @Test
     void contextLoads() {

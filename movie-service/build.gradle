@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+description = 'movie-service'
+
+dependencies {
+    // 1. Наш общий модуль (если понадобятся общие DTO или константы)
+    implementation project(':core')
+
+    // 2. Стандартный стек для REST-API и работы с БД
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // 3. Lombok (куда же без него)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // 4. Тесты
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
