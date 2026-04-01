@@ -22,18 +22,15 @@ public class AuthGrpcService extends AuthServiceGrpc.AuthServiceImplBase {
         log.info("gRPC call: Проверка токена через gRPC");
 
         try {
-            // 1. Пытаемся распарсить токен нашим ключом
-            // Если он просрочен или подделан — вылетит исключение
             Claims claims = jwtUtils.getClaimsFromToken(token);
-
             String userId = claims.getSubject();
+            String role = claims.get("role", String.class); // Достаем роль из JWT
 
-            // 2. Если всё ок — отвечаем "Валиден"
             TokenResponse response = TokenResponse.newBuilder()
                     .setIsValid(true)
                     .setUserId(userId)
+                    .setRole(role != null ? role : "USER") // Устанавливаем роль
                     .build();
-
             responseObserver.onNext(response);
         } catch (Exception e) {
             // 3. Если токен плохой — отвечаем "Не валиден"

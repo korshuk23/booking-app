@@ -21,6 +21,9 @@ dependencies {
 
     // 4. Тесты
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // 5. Liquibase
+    implementation 'org.liquibase:liquibase-core'
 }
 
 tasks.named('test') {

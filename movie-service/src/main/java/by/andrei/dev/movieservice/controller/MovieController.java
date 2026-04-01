@@ -3,6 +3,8 @@ package by.andrei.dev.movieservice.controller;
 import by.andrei.dev.movieservice.entity.Movie;
 import by.andrei.dev.movieservice.repository.MovieRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,7 +25,11 @@ public class MovieController {
 
     // Добавить новый фильм (для теста через Postman)
     @PostMapping
-    public Movie createMovie(@RequestBody Movie movie) {
-        return movieRepository.save(movie);
+    public ResponseEntity<?> createMovie(@RequestBody Movie movie,
+                                         @RequestHeader("X-User-Role") String role) {
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Только админ может добавлять фильмы!");
+        }
+        return ResponseEntity.ok().body(movieRepository.save(movie));
     }
 }
