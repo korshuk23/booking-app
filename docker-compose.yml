@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Наша база данных
+  # 1. Твоя база (оставляем как есть)
   postgres-db:
     image: postgres:15
     container_name: teacinema-db
@@ -14,8 +14,43 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # В будущем сюда добавим auth-service, gateway и т.д.
-  # пока оставляем только БД, чтобы ты мог запустить приложение из IDEA
+  # 2. Auth Service
+  auth-service:
+    build: ./auth-service # Путь к папке, где лежит Dockerfile
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+      - "9091:9091"
+    depends_on:
+      - postgres-db # Ждем, пока поднимется база
+    environment:
+      - DB_HOST=postgres-db # Внутри сети докера стучимся по имени сервиса!
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=your_password
+
+  # 3. Movie Service
+  movie-service:
+    build: ./movie-service
+    container_name: movie-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres-db
+    environment:
+      - DB_HOST=postgres-db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=your_password
+
+  # 4. Gateway
+  gateway-service:
+    build: ./gateway-service
+    container_name: gateway-service
+    ports:
+      - "8088:8088"
+    depends_on:
+      - auth-service
+    environment:
+      - GRPC_CLIENT_AUTH_SERVICE_ADDRESS=static://auth-service:9091
 
 volumes:
   postgres_data:

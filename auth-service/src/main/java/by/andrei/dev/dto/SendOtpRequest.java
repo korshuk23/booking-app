@@ -4,13 +4,13 @@ import lombok.*;
 
 @Data
 @Builder
-@NoArgsConstructor  // Обязательно для Jackson (десериализация JSON)
-@AllArgsConstructor // Нужно для работы @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SendOtpRequest {
 
     @NonNull
-    private String identifier; // Убрали static! Обычно это телефон или email
+    private String identifier;
 
     @NonNull
-    private String role; // Либо String, либо твой Enum Role
+    private String role;
 }

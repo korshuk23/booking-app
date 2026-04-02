@@ -15,6 +15,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.util.concurrent.TimeUnit;
+
 @Component
 @Slf4j
 @Order(-1) // Самый высокий приоритет
@@ -45,7 +47,9 @@ public class AuthFilter implements GlobalFilter {
                     TokenRequest request = TokenRequest.newBuilder()
                             .setAccessToken(token)
                             .build();
-                    return authStub.validateToken(request);
+                    return authStub
+                            .withDeadlineAfter(500, TimeUnit.MILLISECONDS)
+                            .validateToken(request);
                 })
                 .subscribeOn(Schedulers.boundedElastic()) // Выполняем в отдельном пуле, чтобы не вешать Gateway
                 .flatMap(response -> {
