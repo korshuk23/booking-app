@@ -23,7 +23,7 @@ spring:
 
         # Маршрут для бронирования
         - id: booking-service
-          uri: http://booking-service:8082
+          uri: http://booking-service:8084
           predicates:
             - Path=/api/v1/bookings/**
 

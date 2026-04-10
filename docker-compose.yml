@@ -41,7 +41,20 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=your_password
 
-  # 4. Gateway
+  # 4. Booking Service
+  booking-service:
+    build: ./booking-service
+    container_name: booking-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres-db
+    environment:
+      - DB_HOST=postgres-db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=your_password
+
+  # 5. Gateway
   gateway-service:
     build: ./gateway-service
     container_name: gateway-service

@@ -6,7 +6,7 @@ package com.korshuk.dev.core;
 option java_multiple_files = true;
 option java_package = "com.korshuk.dev.core.grpc";
 
-// Описываем сервис, который будет "слушать" запросы от других микросервисов
+// 1. Auth Service
 service AuthService {
   // Метод для проверки токена (другие сервисы будут его вызывать)
   rpc ValidateToken (TokenRequest) returns (TokenResponse);
@@ -20,4 +20,21 @@ message TokenResponse {
   string userId = 1;
   bool isValid = 2;
   string role = 3;
+}
+
+// 2. Booking Service
+// Добавляем новый сервис для фильмов
+service MovieService {
+  rpc GetMovieInfo (MovieRequest) returns (MovieResponse);
+}
+
+message MovieRequest {
+  int64 movieId = 1;
+}
+
+message MovieResponse {
+  int64 movieId = 1;
+  string title = 2;
+  double price = 3;
+  bool isAvailable = 4;
 }

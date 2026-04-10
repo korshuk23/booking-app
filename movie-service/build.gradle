@@ -15,6 +15,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
 
+    // Зависимость для gRPC КЛИЕНТА (Букинг будет вызывать Муви)
+    implementation 'net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE'
+
     // 3. Lombok (куда же без него)
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
