@@ -1,4 +1,5 @@
---changeset korshuk:1
+--liquibase formatted sql
+--changeset korshuk:3
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     identifier VARCHAR(255) UNIQUE NOT NULL,

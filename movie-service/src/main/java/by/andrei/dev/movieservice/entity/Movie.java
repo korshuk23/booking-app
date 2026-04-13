@@ -13,4 +13,6 @@ public class Movie {
     private String title;
     private String description;
     private String genre;
+    private Double price;
+    private Boolean isAvailable;
 }

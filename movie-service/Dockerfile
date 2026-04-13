@@ -1,5 +1,5 @@
 # 1. Берем легкий образ Java
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:21-jre
 # 2. Рабочая директория
 WORKDIR /app
 # 3. Копируем скомпилированный JAR (путь может чуть отличаться, проверь build/libs)
