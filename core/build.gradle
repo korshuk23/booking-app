@@ -10,28 +10,35 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    // ОБНОВЛЕНО: Версии 1.62.2 более стабильны для новых JDK
-    api 'io.grpc:grpc-netty-shaded:1.62.2'
-    api 'io.grpc:grpc-protobuf:1.62.2'
-    api 'io.grpc:grpc-stub:1.62.2'
+// ЭТОТ БЛОК ЛЕЧИТ ОШИБКУ extractIncludeTestProto
+configurations {
+    testCompileProtoPath {
+        exclude group: 'org.springframework.boot'
+    }
+}
 
-    // Аннотации
-    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+dependencies {
+    // gRPC стек (api - чтобы Gateway и Auth видели эти либы автоматически)
+    api 'io.grpc:grpc-netty-shaded:1.52.1'
+    api 'io.grpc:grpc-protobuf:1.52.1'
+    api 'io.grpc:grpc-stub:1.52.1'
+
+    // Аннотации для генерации кода
+    api 'javax.annotation:javax.annotation-api:1.3.2'
     api 'jakarta.annotation:jakarta.annotation-api:2.1.1'
 
+    // Чистый JUnit для тестов ядра (без Spring)
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
 }
 
 protobuf {
     protoc {
-        // ОБНОВЛЕНО: Версия protoc должна соответствовать gRPC
         artifact = "com.google.protobuf:protoc:3.25.1"
     }
     plugins {
         grpc {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.62.2"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.52.1"
         }
     }
     generateProtoTasks {
@@ -43,12 +50,11 @@ protobuf {
     }
 }
 
-// Это поможет IDE и компилятору точно найти сгенерированные файлы
 sourceSets {
     main {
         java {
-            srcDirs += 'build/generated/source/proto/main/grpc'
-            srcDirs += 'build/generated/source/proto/main/java'
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
         }
     }
 }

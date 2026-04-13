@@ -1,16 +1,15 @@
+
 plugins {
-    id 'java'
     id 'org.springframework.boot'
-    id 'io.spring.dependency-management'
 }
 
 description = 'auth-service'
 
 dependencies {
-    // 1. Наш общий модуль (притащит gRPC 1.52.1)
+    // 1. Наш общий модуль
     implementation project(':core')
 
-    // 2. gRPC Server Starter (вырезаем внутренний gRPC, чтобы не было конфликта с :core)
+    // 2. gRPC Server Starter (вырезаем внутренний gRPC, чтобы не было конфликта с :core)????
     implementation('net.devh:grpc-server-spring-boot-starter:2.15.0.RELEASE') {
         exclude group: 'io.grpc'
     }
@@ -24,16 +23,6 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
-
-    // 5. Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-
-    // 6. Тесты
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
-    // 6. Миграции
-    implementation 'org.liquibase:liquibase-core'
 }
 
 tasks.named('test') {

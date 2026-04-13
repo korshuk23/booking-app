@@ -1,0 +1,25 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'booking-service'
+
+dependencies {
+    // 1. Наш общий модуль
+    implementation project(':core')
+
+    // 2. Стандартный стек для REST-API и работы с БДя
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // 3. Зависимость для gRPC КЛИЕНТА (Букинг будет вызывать Муви)
+    implementation 'net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE'
+
+    // 4. Liquibase
+    implementation 'org.liquibase:liquibase-core'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
