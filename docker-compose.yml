@@ -11,6 +11,11 @@ services:
       POSTGRES_PASSWORD: your_password
     ports:
       - "5432:5432"
+    healthcheck: # Проверка готовности для зависимых сервисов
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d teacinema_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -20,9 +25,10 @@ services:
     container_name: auth-service
     ports:
       - "8081:8081"
-      - "9091:9091"
+      - "9091:9091" # grpc порт
     depends_on:
-      - postgres-db # Ждем, пока поднимется база
+      postgres-db:
+        condition: service_healthy # Ждем, пока поднимется база
     environment:
       - DB_HOST=postgres-db # Внутри сети докера стучимся по имени сервиса!
       - DB_USERNAME=postgres
@@ -34,8 +40,10 @@ services:
     container_name: movie-service
     ports:
       - "8083:8083"
+      - "9093:9093" # grpc порт
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_healthy # Ждем, пока поднимется база
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres
@@ -48,7 +56,8 @@ services:
     ports:
       - "8084:8084"
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_healthy # Ждем, пока поднимется база
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres

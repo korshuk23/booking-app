@@ -2,35 +2,41 @@ package by.andrei.dev.utils;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
 public class JwtUtils {
-    private final String secret = "your-very-secure-and-long-secret-key-for-teacinema-project";
-    private final long expirationMs = 86400000; // 24 часа
+
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration}")
+    private long expirationMs;
+    //TODO желательно еще с рефреш подумать
 
     public String generateToken(String identifier, String role) {
-        Key key = Keys.hmacShaKeyFor(secret.getBytes());
+        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes());
         return Jwts.builder()
-                .setSubject(identifier)
+                .subject(identifier)
                 .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .signWith(key)
                 .compact();
     }
 
     public Claims getClaimsFromToken(String token) {
-        Key key = Keys.hmacShaKeyFor(secret.getBytes());
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
+        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        return Jwts.parser()
+                .verifyWith(key)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }
