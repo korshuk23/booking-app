@@ -14,7 +14,34 @@ import net.devh.boot.grpc.server.service.GrpcService;
 @RequiredArgsConstructor
 @GrpcService
 public class AuthGrpcService extends AuthServiceGrpc.AuthServiceImplBase {
+    private final AuthLogicService authService;
     private final JwtUtils jwtUtils;
+
+    @Override
+    //TODO исправить прото и отредактировать логику
+    public void requestOtp(OtpRequest request, StreamObserver<OtpResponse> responseObserver) {
+        try {
+            authService.sendOtp(request.getIdentifier());
+            responseObserver.onNext(OtpResponse.newBuilder().setSuccess(true).build());
+        } catch (Exception e) {
+            log.error("Ошибка при запросе OTP: {}", e.getMessage());
+            responseObserver.onNext(OtpResponse.newBuilder().setSuccess(false).setMessage(e.getMessage()).build());
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void verifyOtp(VerifyRequest request, StreamObserver<AuthResponse> responseObserver) {
+        try {
+            String token = authService.verifyOtpAndGenerateToken(request.getIdentifier(), request.getCode());
+            // Тут можно достать ID юзера из базы, если нужно передать в AuthResponse
+            responseObserver.onNext(AuthResponse.newBuilder().setAccessToken(token).build());
+        } catch (Exception e) {
+            log.error("Ошибка верификации: {}", e.getMessage());
+            responseObserver.onError(io.grpc.Status.UNAUTHENTICATED.withDescription(e.getMessage()).asException());
+        }
+        responseObserver.onCompleted();
+    }
 
     @Override
     public void validateToken(TokenRequest request, StreamObserver<TokenResponse> responseObserver) {

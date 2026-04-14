@@ -20,7 +20,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String identifier;
 
-    private String otpCode;
-
     private String role;
+
+    private boolean isBlocked;
+
+    private String telegramId;
 }
