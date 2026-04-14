@@ -8,7 +8,6 @@ option java_package = "com.korshuk.dev.core.grpc";
 
 // 1. Auth Service
 service AuthService {
-  // Метод для проверки токена (другие сервисы будут его вызывать)
   rpc ValidateToken (TokenRequest) returns (TokenResponse);
 }
 
@@ -17,24 +16,24 @@ message TokenRequest {
 }
 
 message TokenResponse {
-  string userId = 1;
-  bool isValid = 2;
+  string user_id = 1;
+  bool is_valid = 2;
   string role = 3;
 }
 
 // 2. Booking Service
-// Добавляем новый сервис для фильмов
 service MovieService {
   rpc GetMovieInfo (MovieRequest) returns (MovieResponse);
 }
 
 message MovieRequest {
-  int64 movieId = 1;
+  int64 movie_id = 1;
 }
 
 message MovieResponse {
-  int64 movieId = 1;
+  int64 movie_id = 1;
   string title = 2;
+  //Точность double!
   double price = 3;
-  bool isAvailable = 4;
+  bool is_available = 4;
 }
