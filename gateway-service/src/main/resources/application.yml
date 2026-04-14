@@ -15,29 +15,27 @@ spring:
   cloud:
     gateway:
       routes:
-        # Маршрут для авторизации
-        - id: auth-service
-          uri: http://auth-service:8081
-          predicates:
-            - Path=/api/v1/auth/**
-
         # Маршрут для бронирования
         - id: booking-service
           uri: http://booking-service:8084
           predicates:
             - Path=/api/v1/bookings/**
+          # filters:
+          #   - AuthFilter # Не забудь включить свой фильтр здесь
 
         # ДОБАВЬ ЭТОТ БЛОК:
         - id: movie-service
           uri: http://movie-service:8083
           predicates:
             - Path=/api/v1/movies/**
+          # filters:
+          #   - AuthFilter # Не забудь включить свой фильтр здесь
 
 grpc:
   client:
     auth-service:
       address: 'static://auth-service:9091'
-      negotiationType: plaintext
+      negotiation-type: plaintext
 
 # Настройка логирования, чтобы видеть, куда улетают запросы
 logging:

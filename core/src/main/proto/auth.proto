@@ -8,7 +8,30 @@ option java_package = "com.korshuk.dev.core.grpc";
 
 // 1. Auth Service
 service AuthService {
+  rpc RequestOtp (OtpRequest) returns (OtpResponse);
+
+  rpc VerifyOtp (VerifyRequest) returns (AuthResponse);
+
   rpc ValidateToken (TokenRequest) returns (TokenResponse);
+}
+
+message OtpRequest {
+  string identifier = 1;
+}
+
+message OtpResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message VerifyRequest {
+  string identifier = 1;
+  string code = 2;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string user_id = 2;
 }
 
 message TokenRequest {

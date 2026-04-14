@@ -1,9 +1,7 @@
 package by.andrei.dev.service;
 
 import by.andrei.dev.utils.JwtUtils;
-import com.korshuk.dev.core.grpc.AuthServiceGrpc;
-import com.korshuk.dev.core.grpc.TokenRequest;
-import com.korshuk.dev.core.grpc.TokenResponse;
+import com.korshuk.dev.core.grpc.*;
 import io.grpc.stub.StreamObserver;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +16,6 @@ public class AuthGrpcService extends AuthServiceGrpc.AuthServiceImplBase {
     private final JwtUtils jwtUtils;
 
     @Override
-    //TODO исправить прото и отредактировать логику
     public void requestOtp(OtpRequest request, StreamObserver<OtpResponse> responseObserver) {
         try {
             authService.sendOtp(request.getIdentifier());

@@ -20,7 +20,7 @@ public class AuthLogicService {
     private final JwtUtils jwtUtils;
 
     @Transactional
-    public void sendOtp(String identifier, String role) {
+    public void sendOtp(String identifier) {
         String code = String.format("%06d", new Random().nextInt(999999));
 
         OtpCode otp = OtpCode.builder()
