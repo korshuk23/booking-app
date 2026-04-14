@@ -10,21 +10,15 @@ repositories {
     mavenCentral()
 }
 
-// ЭТОТ БЛОК ЛЕЧИТ ОШИБКУ extractIncludeTestProto
-configurations {
-    testCompileProtoPath {
-        exclude group: 'org.springframework.boot'
-    }
-}
+def grpcVersion = '1.80.0'
 
 dependencies {
     // gRPC стек (api - чтобы Gateway и Auth видели эти либы автоматически)
-    api 'io.grpc:grpc-netty-shaded:1.52.1'
-    api 'io.grpc:grpc-protobuf:1.52.1'
-    api 'io.grpc:grpc-stub:1.52.1'
+    api "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    api "io.grpc:grpc-protobuf:${grpcVersion}"
+    api "io.grpc:grpc-stub:${grpcVersion}"
 
     // Аннотации для генерации кода
-    api 'javax.annotation:javax.annotation-api:1.3.2'
     api 'jakarta.annotation:jakarta.annotation-api:2.1.1'
 
     // Чистый JUnit для тестов ядра (без Spring)
@@ -38,7 +32,7 @@ protobuf {
     }
     plugins {
         grpc {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.52.1"
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
         }
     }
     generateProtoTasks {
@@ -46,15 +40,6 @@ protobuf {
             task.plugins {
                 grpc {}
             }
-        }
-    }
-}
-
-sourceSets {
-    main {
-        java {
-            srcDirs 'build/generated/source/proto/main/grpc'
-            srcDirs 'build/generated/source/proto/main/java'
         }
     }
 }
