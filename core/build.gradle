@@ -17,6 +17,7 @@ dependencies {
     api "io.grpc:grpc-netty-shaded:${grpcVersion}"
     api "io.grpc:grpc-protobuf:${grpcVersion}"
     api "io.grpc:grpc-stub:${grpcVersion}"
+    api "io.grpc:grpc-inprocess:${grpcVersion}"
 
     // Аннотации для генерации кода
     api 'jakarta.annotation:jakarta.annotation-api:2.1.1'

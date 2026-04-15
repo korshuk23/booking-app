@@ -47,8 +47,8 @@ public class AuthGrpcService extends AuthServiceGrpc.AuthServiceImplBase {
 
         try {
             Claims claims = jwtUtils.getClaimsFromToken(token);
-            String userId = claims.getSubject();
-            String role = claims.get("role", String.class); // Достаем роль из JWT
+            String userId = (claims.getSubject() != null) ? claims.getSubject() : "";
+            String role = (claims.get("role", String.class) != null) ? claims.get("role", String.class) : "USER";
 
             TokenResponse response = TokenResponse.newBuilder()
                     .setIsValid(true)

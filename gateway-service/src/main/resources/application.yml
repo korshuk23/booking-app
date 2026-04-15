@@ -31,6 +31,15 @@ spring:
           # filters:
           #   - AuthFilter # Не забудь включить свой фильтр здесь
 
+        - id: auth-local
+          uri: forward:///
+          predicates:
+            - Path=/api/v1/auth/**
+        - id: auth-local
+          uri: forward:/api/v1/auth
+          predicates:
+            Path=/api/v1/auth/**
+
 grpc:
   client:
     auth-service:

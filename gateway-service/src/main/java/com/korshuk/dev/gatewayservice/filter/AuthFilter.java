@@ -30,7 +30,7 @@ public class AuthFilter implements GlobalFilter {
         String path = exchange.getRequest().getURI().getPath();
 
         // 1. Пропускаем авторизацию для эндпоинтов аутентификации
-        if (path.contains("/api/v1/auth")) {
+        if (path.startsWith("/api/v1/auth")) {
             return chain.filter(exchange);
         }
 
@@ -68,8 +68,8 @@ public class AuthFilter implements GlobalFilter {
                     }
                 })
                 .onErrorResume(e -> {
-                    log.error("gRPC Error: {}", e.getMessage());
-                    return onError(exchange, HttpStatus.INTERNAL_SERVER_ERROR);
+                    log.error("Auth Service unavailable: {}", e.getMessage());
+                    return onError(exchange, HttpStatus.SERVICE_UNAVAILABLE);
                 });
     }
 

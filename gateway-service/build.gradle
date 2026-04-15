@@ -12,15 +12,13 @@ dependencies {
     // 2. Наш общий модуль
     implementation project(':core')
 
-    // 3. NettyChannelBuilder
-    implementation 'io.grpc:grpc-netty:1.52.1'
+    implementation "io.grpc:grpc-netty:1.80.0"
 
-    // 3. gRPC Client Starter (вычищаем его внутренние зависимости gRPC, чтобы не мешали)???
-    implementation('net.devh:grpc-client-spring-boot-starter:2.15.0.RELEASE') {
+    implementation('net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE') {
         exclude group: 'io.grpc'
     }
 
-    // 4. JWT для проверки токенов в AuthFilter
+    // 5. JWT для проверки токенов в AuthFilter
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
