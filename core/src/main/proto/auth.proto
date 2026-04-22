@@ -44,19 +44,17 @@ message TokenResponse {
   string role = 3;
 }
 
-// 2. Booking Service
+// 2. Movie Service
 service MovieService {
   rpc GetMovieInfo (MovieRequest) returns (MovieResponse);
 }
 
 message MovieRequest {
-  int64 movie_id = 1;
+  string movie_id = 1;
 }
 
 message MovieResponse {
-  int64 movie_id = 1;
-  string title = 2;
-  //Точность double!
-  double price = 3;
-  bool is_available = 4;
+  string title = 1;
+  double price = 2;
+  bool is_available = 3;
 }

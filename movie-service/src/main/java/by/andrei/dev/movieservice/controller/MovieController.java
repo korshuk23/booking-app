@@ -1,35 +1,56 @@
 package by.andrei.dev.movieservice.controller;
 
 import by.andrei.dev.movieservice.entity.Movie;
-import by.andrei.dev.movieservice.repository.MovieRepository;
+import by.andrei.dev.movieservice.service.MovieService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/movies")
 @RequiredArgsConstructor
+@Slf4j
 public class MovieController {
 
-    private final MovieRepository movieRepository;
+    private final MovieService movieService;
 
-    // Получить все фильмы
+    // 1. Получить все доступные фильмы
     @GetMapping
-    public List<Movie> getAllMovies(@RequestHeader(value = "X-User-Id", required = false) String userId) {
-        System.out.println("Запрос списка фильмов. UserID из заголовка: " + userId);
-        return movieRepository.findAll();
+    public ResponseEntity<List<Movie>> getAllAvailable(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+
+        log.info("Request for all movies. User-Id: {}", userId);
+        return ResponseEntity.ok(movieService.findAllAvailable());
     }
 
-    // Добавить новый фильм (для теста через Postman)
+    // 2. Получить конкретный фильм по ID
+    @GetMapping("/{id}")
+    public ResponseEntity<Movie> getById(@PathVariable UUID id) {
+        log.debug("Fetching movie by id: {}", id);
+        return ResponseEntity.ok(movieService.findById(id));
+    }
+
+    // 3. Создать новый фильм (только для админов в будущем)
     @PostMapping
-    public ResponseEntity<?> createMovie(@RequestBody Movie movie,
-                                         @RequestHeader("X-User-Role") String role) {
-        if (!"ADMIN".equals(role)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Только админ может добавлять фильмы!");
-        }
-        return ResponseEntity.ok().body(movieRepository.save(movie));
+    public ResponseEntity<Movie> createMovie(@RequestBody Movie movie) {
+        log.info("Creating new movie: {}", movie.getTitle());
+        Movie savedMovie = movieService.save(movie);
+        return new ResponseEntity<>(savedMovie, HttpStatus.CREATED);
+    }
+
+    // 4. Переключить доступность (быстрый админский метод)
+    @PatchMapping("/{id}/availability")
+    public ResponseEntity<Void> toggleAvailability(
+            @PathVariable UUID id,
+            @RequestParam boolean status) {
+
+        log.info("Changing availability for movie {} to {}", id, status);
+        movieService.setAvailability(id, status);
+        return ResponseEntity.noContent().build();
     }
 }

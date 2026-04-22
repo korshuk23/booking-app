@@ -3,5 +3,3 @@ databaseChangeLog:
       file: db/changelog/changeset/v1-init-db.sql
   - include:
       file: db/changelog/changeset/v2-insert-data.sql
-  - include:
-      file: db/changelog/changeset/v3-alter-movie.sql
