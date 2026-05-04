@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "bookings")
@@ -19,10 +20,10 @@ public class Booking {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private UUID userId;
 
     @Column(name = "movie_id", nullable = false)
-    private Long movieId;
+    private UUID movieId;
 
     @Column(name = "session_id", nullable = false)
     private Long sessionId;

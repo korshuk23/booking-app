@@ -24,4 +24,4 @@ spring:
         format_sql: true
 grpc:
   server:
-    port: 9090
+    port: 9093

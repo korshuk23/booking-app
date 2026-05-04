@@ -13,6 +13,11 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
+grpc:
+  client:
+    movie-service:
+     address: 'static://movie-service:9091'
+     negotiation-type: plaintext
 
   jpa:
     hibernate:
