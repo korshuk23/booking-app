@@ -16,7 +16,7 @@ spring:
 grpc:
   client:
     movie-service:
-     address: 'static://movie-service:9091'
+     address: 'static://localhost:9093'
      negotiation-type: plaintext
 
   jpa:

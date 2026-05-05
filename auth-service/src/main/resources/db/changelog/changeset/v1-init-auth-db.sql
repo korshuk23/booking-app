@@ -1,7 +1,7 @@
 --liquibase formatted sql
 --changeset korshuk:3
 CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     identifier VARCHAR(255) UNIQUE NOT NULL,
     role VARCHAR(50) DEFAULT 'USER',
     is_blocked BOOLEAN DEFAULT FALSE,

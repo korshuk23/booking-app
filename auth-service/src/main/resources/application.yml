@@ -4,7 +4,7 @@ server:
 spring:
   data:
     redis:
-      host: redis
+      host: localhost
       port: 6379
   application:
     name: auth-service

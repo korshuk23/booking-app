@@ -49,6 +49,6 @@ public class AuthLogicService {
                         .role("USER")
                         .build()));
 
-        return jwtUtils.generateToken(user.getIdentifier(), user.getRole());
+        return jwtUtils.generateToken(user.getId(), user.getRole());
     }
 }

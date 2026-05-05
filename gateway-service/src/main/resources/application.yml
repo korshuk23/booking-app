@@ -17,7 +17,7 @@ spring:
       routes:
         # Маршрут для бронирования
         - id: booking-service
-          uri: http://booking-service:8084
+          uri: http://localhost:8084
           predicates:
             - Path=/api/v1/bookings/**
           # filters:
@@ -25,7 +25,7 @@ spring:
 
         # ДОБАВЬ ЭТОТ БЛОК:
         - id: movie-service
-          uri: http://movie-service:8083
+          uri: http://localhost:8083
           predicates:
             - Path=/api/v1/movies/**
           # filters:
@@ -43,7 +43,7 @@ spring:
 grpc:
   client:
     auth-service:
-      address: 'static://auth-service:9091'
+      address: 'static://localhost:9091'
       negotiation-type: plaintext
 
 # Настройка логирования, чтобы видеть, куда улетают запросы
