@@ -1,6 +1,8 @@
 package by.andrei.dev.bookingservice.service;
 
+import by.andrei.dev.bookingservice.dto.BookingEvent;
 import by.andrei.dev.bookingservice.entity.Booking;
+import by.andrei.dev.bookingservice.producer.BookingProducer;
 import by.andrei.dev.bookingservice.repository.BookingRepository;
 import com.korshuk.dev.core.grpc.MovieResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import java.util.UUID;
 public class BookingService {
     private final BookingRepository bookingRepository;
     private final MovieClient movieClient;
+    private final BookingProducer bookingProducer;
 
     @Transactional
     public Booking createBooking(UUID userId, UUID movieId, Long sessionId) {
@@ -34,7 +37,20 @@ public class BookingService {
                 .price(BigDecimal.valueOf(movieInfo.getPrice()))
                 .status("PENDING")
                 .build();
-        return bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+        // 2. Создаем ивент
+        BookingEvent event = BookingEvent.builder()
+                .bookingId(booking.getId())
+                .movieId(booking.getMovieId())
+                .userId(booking.getUserId())
+                .status(booking.getStatus())
+                .price(booking.getPrice())
+                .build();
+
+        // 3. Отправляем в Кафку
+        bookingProducer.sendBookingEvent(event);
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
