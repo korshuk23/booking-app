@@ -1,5 +1,4 @@
 --liquibase formatted sql
---changeset korshuk:5
 CREATE TABLE movie_sessions
 (
     id              UUID PRIMARY KEY,
