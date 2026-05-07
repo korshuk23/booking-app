@@ -3,6 +3,7 @@ package by.andrei.dev.movieservice.consumer;
 import by.andrei.dev.movieservice.dto.BookingEvent;
 import by.andrei.dev.movieservice.entity.MovieSession;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
+import by.andrei.dev.movieservice.producer.MovieStatusProducer;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,38 +12,39 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class BookingConsumer {
     private final ProcessedBookingRepository processedBookingRepository;
     private final MovieSessionRepository sessionRepository;
+    private final MovieStatusProducer statusProducer;
 
     @KafkaListener(topics = "booking-events", groupId = "movie-group")
     @Transactional
     public void consume(BookingEvent event) {
-        // 1. Проверка идемпотентности (Защита от дублей)
         if (processedBookingRepository.existsById(event.getBookingId())) {
-            log.info("Booking {} already processed. Skipping...", event.getBookingId());
             return;
         }
 
-        // 2. Поиск сеанса
-        MovieSession session = sessionRepository.findFirstByMovieIdOrderByStartTimeAsc(event.getMovieId())
-                .orElseThrow(() -> new RuntimeException("No session found for movie: " + event.getMovieId()));
+        Optional<MovieSession> sessionOpt = sessionRepository.findFirstByMovieIdOrderByStartTimeAsc(event.getMovieId());
 
-        // 3. Проверка и списание мест
-        if (session.getAvailableSeats() > 0) {
-            session.setAvailableSeats(session.getAvailableSeats() - 1);
-            sessionRepository.save(session);
+        if (sessionOpt.isPresent()) {
+            MovieSession session = sessionOpt.get();
 
-            // 4. Фиксируем обработанный ID заказа
-            processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
+            if (session.getAvailableSeats() > 0) {
+                session.setAvailableSeats(session.getAvailableSeats() - 1);
+                sessionRepository.save(session);
+                processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
 
-            log.info("Success! Seat reserved for booking {}", event.getBookingId());
+                statusProducer.sendStatus(event.getBookingId(), "CONFIRMED", "Seat reserved successfully");
+            } else {
+                statusProducer.sendStatus(event.getBookingId(), "REJECTED", "No available seats");
+            }
         } else {
-            log.warn("No seats left for booking {}", event.getBookingId());
-            // Тут потом добавим отправку REJECTED ивента
+            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "Movie session not found");
         }
     }
 }
