@@ -4,4 +4,5 @@ include(":gateway-service")
 include(":auth-service")
 include(":movie-service")
 include(":booking-service")
+include(":discovery-server")
 

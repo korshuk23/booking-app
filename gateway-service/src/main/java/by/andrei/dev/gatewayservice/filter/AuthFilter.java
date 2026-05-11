@@ -1,4 +1,4 @@
-package com.korshuk.dev.gatewayservice.filter;
+package by.andrei.dev.gatewayservice.filter;
 
 import com.korshuk.dev.core.grpc.AuthServiceGrpc;
 import com.korshuk.dev.core.grpc.TokenRequest;

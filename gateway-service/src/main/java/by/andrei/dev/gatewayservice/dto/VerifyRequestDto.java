@@ -1,4 +1,4 @@
-package com.korshuk.dev.gatewayservice.dto;
+package by.andrei.dev.gatewayservice.dto;
 
 public record VerifyRequestDto(
         String identifier,

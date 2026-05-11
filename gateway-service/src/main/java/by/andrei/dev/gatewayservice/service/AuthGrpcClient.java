@@ -1,4 +1,4 @@
-package com.korshuk.dev.gatewayservice.service;
+package by.andrei.dev.gatewayservice.service;
 
 import com.korshuk.dev.core.grpc.*;
 import net.devh.boot.grpc.client.inject.GrpcClient;

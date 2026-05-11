@@ -1,0 +1,24 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'discovery-server'
+
+ext {
+    set('springCloudVersion', "2024.0.0")
+}
+
+dependencies {
+    // Нам не нужен core для старта самой Эврики, убери его пока, чтобы не было конфликтов
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

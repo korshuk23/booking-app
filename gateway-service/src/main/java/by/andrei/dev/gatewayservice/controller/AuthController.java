@@ -1,8 +1,8 @@
-package com.korshuk.dev.gatewayservice.controller;
+package by.andrei.dev.gatewayservice.controller;
 
-import com.korshuk.dev.gatewayservice.dto.OtpRequestDto;
-import com.korshuk.dev.gatewayservice.dto.VerifyRequestDto;
-import com.korshuk.dev.gatewayservice.service.AuthGrpcClient;
+import by.andrei.dev.gatewayservice.dto.OtpRequestDto;
+import by.andrei.dev.gatewayservice.dto.VerifyRequestDto;
+import by.andrei.dev.gatewayservice.service.AuthGrpcClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

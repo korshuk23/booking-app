@@ -5,12 +5,19 @@ plugins {
 }
 
 allprojects {
-    group = 'com.korshuk.dev'
+    group = 'by.andrei.dev'
     version = '0.0.1-SNAPSHOT'
     repositories {
         mavenCentral()
     }
 }
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 description = 'booking-app'
 
 subprojects {

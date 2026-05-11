@@ -27,6 +27,9 @@ dependencies {
 
     // 5. Liquibase
     implementation 'org.liquibase:liquibase-core'
+
+    // 6. Eureka
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 }
 
 tasks.named('test') {
