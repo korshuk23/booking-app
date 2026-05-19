@@ -1,0 +1,3 @@
+CREATE DATABASE booking_db;
+CREATE DATABASE movie_db;
+CREATE DATABASE keycloak_db;

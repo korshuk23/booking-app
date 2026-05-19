@@ -12,6 +12,15 @@ springdoc:
 spring:
   application:
     name: gateway-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Адрес нашего Realm в Keycloak.
+          # По этому URL Гейтвей сам найдет эндпоинт с публичными ключами (JWKS)
+          issuer-uri: http://keycloak-cinema:8080/realms/teacinema
+          # Если тестируешь гейтвей БЕЗ докера (из IDE), а Кейклок в докере,
+          # то временно замени "keycloak-cinema" на "localhost"
   cloud:
     gateway:
       routes:

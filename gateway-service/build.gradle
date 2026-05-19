@@ -25,6 +25,9 @@ dependencies {
 
     // 6. Eureka
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    // 7. Стартер для работы Spring Cloud Gateway в качестве Resource Server (OAuth2)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 }
 
 tasks.named('test') {
