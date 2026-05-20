@@ -19,8 +19,12 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String path = exchange.getRequest().getURI().getPath();
+        if (!path.startsWith("/api/v2/")) {
+            return chain.filter(exchange);
+        }
         // Так как мы в реактивном WebFlux, контекст безопасности берется через Реактивный холдер
-        return ReactiveSecurityContextHolder.getContext()
+        Mono<Void> voidMono = ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 // Проверяем, что пользователь действительно аутентифицирован через JWT
                 .filter(auth -> auth instanceof JwtAuthenticationToken)
@@ -50,6 +54,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
                 // Если запрос пришел на публичный эндпоинт (без токена), контекст будет пуст.
                 // В таком случае просто пропускаем запрос «как есть» без добавления заголовков.
                 .switchIfEmpty(chain.filter(exchange));
+        return voidMono;
     }
 
     @Override

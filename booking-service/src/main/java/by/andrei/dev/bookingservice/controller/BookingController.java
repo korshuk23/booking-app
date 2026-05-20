@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("api/v1/bookings")
+@RequestMapping({"/api/v1/bookings", "/api/v2/bookings"})
 @RequiredArgsConstructor
 @Slf4j
 public class BookingController {

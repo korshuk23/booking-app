@@ -29,6 +29,10 @@ public class AuthFilter implements GlobalFilter {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
+        if (path.startsWith("/api/v2/")) {
+            return chain.filter(exchange);
+        }
+
         // 1. Пропускаем авторизацию для эндпоинтов аутентификации
         if (path.startsWith("/api/v1/auth")) {
             return chain.filter(exchange);

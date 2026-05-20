@@ -24,10 +24,17 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: booking-service
+        # Твой старый роут v1 (через gRPC)
+        - id: booking-service-v1
           uri: lb://booking-service
           predicates:
             - Path=/api/v1/bookings/**
+            -
+        # Наш новый роут v2 (через Keycloak)
+        - id: booking-service-v2
+          uri: lb://booking-service
+          predicates:
+            - Path=/api/v2/bookings/**
 
         - id: movie-service
           uri: lb://movie-service

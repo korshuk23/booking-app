@@ -1,3 +1,3 @@
-CREATE DATABASE booking_db;
-CREATE DATABASE movie_db;
-CREATE DATABASE keycloak_db;
+SELECT 'CREATE DATABASE booking_db' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'booking_db')\gexec
+SELECT 'CREATE DATABASE movie_db' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'movie_db')\gexec
+SELECT 'CREATE DATABASE keycloak_db' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'keycloak_db')\gexec

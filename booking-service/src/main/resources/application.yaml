@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/teacinema_db
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:your_password}
+    password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
 
   kafka:
