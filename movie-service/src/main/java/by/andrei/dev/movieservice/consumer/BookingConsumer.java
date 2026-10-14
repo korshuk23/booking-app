@@ -25,26 +25,28 @@ public class BookingConsumer {
     @KafkaListener(topics = "booking-events", groupId = "movie-group")
     @Transactional
     public void consume(BookingEvent event) {
+        log.info("Processing booking event: bookingId={}, sessionId={}", event.getBookingId(), event.getSessionId());
+
         if (processedBookingRepository.existsById(event.getBookingId())) {
+            log.warn("Booking {} already processed, skipping", event.getBookingId());
             return;
         }
 
-        Optional<MovieSession> sessionOpt = sessionRepository.findFirstByMovieIdOrderByStartTimeAsc(event.getMovieId());
+        if (event.getSessionId() == null) {
+            log.error("SessionId is null for booking {}", event.getBookingId());
+            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "Session ID cannot be null");
+            return;
+        }
+        int updatedRows = sessionRepository.reserveSeat(event.getSessionId());
 
-        if (sessionOpt.isPresent()) {
-            MovieSession session = sessionOpt.get();
+        if (updatedRows > 0) {
+            processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
+            log.info("Seat reserved successfully for booking {}", event.getBookingId());
 
-            if (session.getAvailableSeats() > 0) {
-                session.setAvailableSeats(session.getAvailableSeats() - 1);
-                sessionRepository.save(session);
-                processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
-
-                statusProducer.sendStatus(event.getBookingId(), "CONFIRMED", "Seat reserved successfully");
-            } else {
-                statusProducer.sendStatus(event.getBookingId(), "REJECTED", "No available seats");
-            }
+            statusProducer.sendStatus(event.getBookingId(), "CONFIRMED", "Seat reserved successfully");
         } else {
-            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "Movie session not found");
+            log.warn("Failed to reserve seat for booking {}: sold out or session not found", event.getBookingId());
+            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "No available seats or invalid session");
         }
     }
 }
