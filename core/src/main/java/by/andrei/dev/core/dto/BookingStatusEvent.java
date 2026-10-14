@@ -1,4 +1,4 @@
-package by.andrei.dev.movieservice.dto;
+package by.andrei.dev.core.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,3 +16,4 @@ public class BookingStatusEvent {
     private String status;
     private String message;
 }
+

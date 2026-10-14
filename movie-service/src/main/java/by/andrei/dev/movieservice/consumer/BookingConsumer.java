@@ -1,6 +1,6 @@
 package by.andrei.dev.movieservice.consumer;
 
-import by.andrei.dev.movieservice.dto.BookingEvent;
+import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.movieservice.entity.MovieSession;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
 import by.andrei.dev.movieservice.producer.MovieStatusProducer;

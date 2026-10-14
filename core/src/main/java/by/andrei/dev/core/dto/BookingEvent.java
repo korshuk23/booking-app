@@ -1,4 +1,4 @@
-package by.andrei.dev.bookingservice.dto;
+package by.andrei.dev.core.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +15,7 @@ import java.util.UUID;
 public class BookingEvent {
     private UUID bookingId;
     private UUID movieId;
+    private Long sessionId;
     private UUID userId;
     private String status;
     private BigDecimal price;

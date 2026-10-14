@@ -1,6 +1,6 @@
 package by.andrei.dev.movieservice.producer;
 
-import by.andrei.dev.movieservice.dto.BookingStatusEvent;
+import by.andrei.dev.core.dto.BookingStatusEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

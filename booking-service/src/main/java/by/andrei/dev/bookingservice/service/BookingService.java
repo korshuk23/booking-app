@@ -1,9 +1,9 @@
 package by.andrei.dev.bookingservice.service;
 
-import by.andrei.dev.bookingservice.dto.BookingEvent;
 import by.andrei.dev.bookingservice.entity.Booking;
 import by.andrei.dev.bookingservice.producer.BookingProducer;
 import by.andrei.dev.bookingservice.repository.BookingRepository;
+import by.andrei.dev.core.dto.BookingEvent;
 import com.korshuk.dev.core.grpc.MovieResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
