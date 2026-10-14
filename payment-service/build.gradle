@@ -1,0 +1,21 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'payment-service'
+
+dependencies {
+    implementation project(':core')
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'org.liquibase:liquibase-core'
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
