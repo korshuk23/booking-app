@@ -21,7 +21,7 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<Booking> createBooking(@RequestHeader("X-User-Id") String userId,
                                                  @RequestParam UUID movieId,
-                                                 @RequestParam Long sessionId) {
+                                                 @RequestParam UUID sessionId) {
         log.info("User {} requested booking for movie {}", userId, movieId);
 
         Booking booking = bookingService.createBooking(

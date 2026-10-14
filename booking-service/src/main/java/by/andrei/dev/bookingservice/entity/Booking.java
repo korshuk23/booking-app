@@ -27,7 +27,7 @@ public class Booking {
     private UUID movieId;
 
     @Column(name = "session_id", nullable = false)
-    private Long sessionId;
+    private UUID sessionId;
 
     @Column(nullable = false)
     private String status;

@@ -23,7 +23,7 @@ public class BookingService {
     private final BookingProducer bookingProducer;
 
     @Transactional
-    public Booking createBooking(UUID userId, UUID movieId, Long sessionId) {
+    public Booking createBooking(UUID userId, UUID movieId, UUID sessionId) {
         MovieResponse movieInfo = movieClient.getMovieInfo(movieId);
 
         if (!movieInfo.getIsAvailable()) {
