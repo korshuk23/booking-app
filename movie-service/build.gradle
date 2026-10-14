@@ -5,7 +5,7 @@ plugins {
 description = 'movie-service'
 
 dependencies {
-    // 1. Наш общий модуль (если понадобятся общие DTO или константы)
+    // 1. Наш общий модуль
     implementation project(':core')
 
     // 2. Стандартный стек для REST-API и работы с БД
@@ -13,17 +13,20 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
 
-    // 3. Зависимость для gRPC КЛИЕНТА и СЕРВЕРА
+    // 3. Redis & Spring Cache (НОВОЕ!)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+
+    // 4. Actuator для метрик и здоровья (НОВОЕ!)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // 5. Зависимость для gRPC КЛИЕНТА и СЕРВЕРА
     implementation 'net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE'
     implementation 'net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE'
 
-    // 4. Liquibase
+    // 6. Liquibase
     implementation 'org.liquibase:liquibase-core'
-
-    // 5. kafka
     implementation 'org.springframework.kafka:spring-kafka'
-
-    // 6. Eureka
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 }
 

@@ -33,11 +33,11 @@ subprojects {
         annotationProcessor("org.projectlombok:lombok:1.18.38")
 
         if (project.name != 'core') {
-            apply plugin: 'io.spring.dependency-management'
+            // Трассировка: автоматически связывает HTTP запросы, Kafka события и логи
+            implementation 'org.springframework.boot:spring-boot-starter-actuator'
+            implementation 'io.micrometer:micrometer-tracing-bridge-brave'
 
-            dependencies {
-                testImplementation 'org.springframework.boot:spring-boot-starter-test'
-            }
+            testImplementation 'org.springframework.boot:spring-boot-starter-test'
         }
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 

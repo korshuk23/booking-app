@@ -5,6 +5,11 @@ spring:
   application:
     name: movie-service
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/movie_db
     username: ${DB_USERNAME:postgres}
@@ -41,3 +46,13 @@ eureka:
 grpc:
   server:
     port: 9093
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
