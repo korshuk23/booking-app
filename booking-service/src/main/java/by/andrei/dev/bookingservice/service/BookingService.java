@@ -1,9 +1,12 @@
 package by.andrei.dev.bookingservice.service;
 
 import by.andrei.dev.bookingservice.entity.Booking;
-import by.andrei.dev.bookingservice.producer.BookingProducer;
+import by.andrei.dev.bookingservice.entity.OutboxEvent;
 import by.andrei.dev.bookingservice.repository.BookingRepository;
+import by.andrei.dev.bookingservice.repository.OutboxRepository;
 import by.andrei.dev.core.dto.BookingEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.korshuk.dev.core.grpc.MovieResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +22,9 @@ import java.util.UUID;
 @Slf4j
 public class BookingService {
     private final BookingRepository bookingRepository;
+    private final OutboxRepository outboxRepository;
     private final MovieClient movieClient;
-    private final BookingProducer bookingProducer;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public Booking createBooking(UUID userId, UUID movieId, UUID sessionId) {
@@ -38,7 +42,7 @@ public class BookingService {
                 .status("PENDING")
                 .build();
         Booking saved = bookingRepository.save(booking);
-        // 2. Создаем ивент
+
         BookingEvent event = BookingEvent.builder()
                 .bookingId(booking.getId())
                 .movieId(booking.getMovieId())
@@ -47,8 +51,19 @@ public class BookingService {
                 .price(booking.getPrice())
                 .build();
 
-        // 3. Отправляем в Кафку
-        bookingProducer.sendBookingEvent(event);
+        try {
+            OutboxEvent outboxEvent = OutboxEvent.builder()
+                    .aggregateType("BOOKING")
+                    .aggregateId((saved.getId()))
+                    .eventType("BOOKING_CREATED")
+                    .payload(objectMapper.writeValueAsString(event))
+                    .build();
+            outboxRepository.save(outboxEvent);
+            log.info("Booking created and saved to Outbox with ID {}", saved.getId());
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize booking event for booking {}", saved.getId(), e);
+            throw new RuntimeException("Error processing booking event", e);
+        }
 
         return saved;
     }
@@ -56,10 +71,6 @@ public class BookingService {
     @Transactional(readOnly = true)
     public List<Booking> findAllBookings(UUID userId) {
         log.info("Fetching booking history for user: {}", userId);
-
-        List<Booking> bookings = bookingRepository.findAllByUserId(userId);
-
-        log.debug("Found {} bookings for user: {}", bookings.size(), userId);
-        return bookings;
+        return bookingRepository.findAllByUserId(userId);
     }
 }

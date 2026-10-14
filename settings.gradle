@@ -5,4 +5,8 @@ include(":auth-service")
 include(":movie-service")
 include(":booking-service")
 include(":discovery-server")
+include(":payment-service")
 
+
+include 'payment-service'
+include 'payment-service'

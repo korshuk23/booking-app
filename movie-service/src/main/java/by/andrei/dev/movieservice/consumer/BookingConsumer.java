@@ -1,6 +1,7 @@
 package by.andrei.dev.movieservice.consumer;
 
 import by.andrei.dev.core.dto.BookingEvent;
+import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.entity.MovieSession;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
 import by.andrei.dev.movieservice.producer.MovieStatusProducer;
@@ -34,7 +35,7 @@ public class BookingConsumer {
 
         if (event.getSessionId() == null) {
             log.error("SessionId is null for booking {}", event.getBookingId());
-            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "Session ID cannot be null");
+            statusProducer.sendStatus(event.getBookingId(), event.getUserId(), null, event.getPrice(), "REJECTED", "Session ID cannot be null");
             return;
         }
         int updatedRows = sessionRepository.reserveSeat(event.getSessionId());
@@ -43,10 +44,22 @@ public class BookingConsumer {
             processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
             log.info("Seat reserved successfully for booking {}", event.getBookingId());
 
-            statusProducer.sendStatus(event.getBookingId(), "CONFIRMED", "Seat reserved successfully");
+            statusProducer.sendStatus(event.getBookingId(), event.getUserId(), event.getSessionId(), event.getPrice(), "SEATS_RESERVED", "Seat reserved successfully");
         } else {
             log.warn("Failed to reserve seat for booking {}: sold out or session not found", event.getBookingId());
-            statusProducer.sendStatus(event.getBookingId(), "REJECTED", "No available seats or invalid session");
+            statusProducer.sendStatus(event.getBookingId(), event.getUserId(), event.getSessionId(), event.getPrice(), "REJECTED", "No available seats or invalid session");
+        }
+    }
+
+    /**
+     * Компенсирующая транзакция Саги: если оплата провалилась, возвращаем место!
+     */
+    @KafkaListener(topics = "payment-events", groupId = "movie-compensation-group")
+    @Transactional
+    public void handlePaymentCompensation(PaymentEvent event) {
+        if ("FAILED".equals(event.getStatus()) && event.getSessionId() != null) {
+            log.warn("Payment failed for booking {}. Releasing seat back for session {}", event.getBookingId(), event.getSessionId());
+            sessionRepository.releaseSeat(event.getSessionId());
         }
     }
 }
