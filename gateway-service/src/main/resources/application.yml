@@ -19,8 +19,6 @@ spring:
           # Адрес нашего Realm в Keycloak.
           # По этому URL Гейтвей сам найдет эндпоинт с публичными ключами (JWKS)
           issuer-uri: http://keycloak-cinema:8080/realms/teacinema
-          # Если тестируешь гейтвей БЕЗ докера (из IDE), а Кейклок в докере,
-          # то временно замени "keycloak-cinema" на "localhost"
   cloud:
     gateway:
       routes:
@@ -30,12 +28,6 @@ spring:
           predicates:
             - Path=/api/v1/bookings/**
             -
-        # Наш новый роут v2 (через Keycloak)
-        - id: booking-service-v2
-          uri: lb://booking-service
-          predicates:
-            - Path=/api/v2/bookings/**
-
         - id: movie-service
           uri: lb://movie-service
           predicates:
@@ -49,21 +41,15 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://${EUREKA_HOST:localhost}:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
   instance:
     instance-id: ${spring.application.name}:${server.port}
     prefer-ip-address: true
 
-grpc:
-  client:
-    auth-service:
-      address: 'discovery:///auth-service'
-      negotiation-type: plaintext
-
 # Настройка логирования, чтобы видеть, куда улетают запросы
 logging:
   level:
-    org.springframework.cloud.gateway: TRACE
-    org.springframework.http.server.reactive: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: DEBUG

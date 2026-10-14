@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -19,14 +20,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String path = exchange.getRequest().getURI().getPath();
-        if (!path.startsWith("/api/v2/")) {
-            return chain.filter(exchange);
-        }
-        // Так как мы в реактивном WebFlux, контекст безопасности берется через Реактивный холдер
-        Mono<Void> voidMono = ReactiveSecurityContextHolder.getContext()
+        return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
-                // Проверяем, что пользователь действительно аутентифицирован через JWT
                 .filter(auth -> auth instanceof JwtAuthenticationToken)
                 .cast(JwtAuthenticationToken.class)
                 .flatMap(jwtAuth -> {
@@ -35,33 +30,31 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
                     // 2. Извлекаем роли пользователя
                     String roles = jwtAuth.getAuthorities().stream()
-                            .map(grantedAuthority -> grantedAuthority.getAuthority()) // Получим "ROLE_USER"
+                            .map(GrantedAuthority::getAuthority)
                             .collect(Collectors.joining(","));
+                    //Email пользователя(если есть)
+                    String email = jwtAuth.getToken().getClaimAsString("email");
 
-                    log.info("Gateway intercepted request. User ID: {}, Roles: {}", userId, roles);
+                    log.debug("Gateway propagating user info: userId={}, roles={}, email={}", userId, roles, email);
 
                     // 3. Модифицируем текущий HTTP-запрос, добавляя наши кастомные заголовки
                     ServerWebExchange mutatedExchange = exchange.mutate()
-                            .request(builder -> builder
-                                    .header("X-User-Id", userId)
-                                    .header("X-User-Role", roles)
-                                    .build())
+                            .request(builder -> {
+                                builder.header("X-User-Id", userId);
+                                builder.header("X-User-Roles", roles);
+                                if (email != null) {
+                                    builder.header("X-User-Email", email);
+                                }
+                            })
                             .build();
 
-                    // Передаем измененный запрос дальше по цепочке микросервисов
                     return chain.filter(mutatedExchange);
                 })
-                // Если запрос пришел на публичный эндпоинт (без токена), контекст будет пуст.
-                // В таком случае просто пропускаем запрос «как есть» без добавления заголовков.
                 .switchIfEmpty(chain.filter(exchange));
-        return voidMono;
     }
 
     @Override
     public int getOrder() {
-        // Устанавливаем приоритет фильтра.
-        // Он должен выполниться ПОСЛЕ того, как Spring Security проверит токен.
-        // Маленькие/отрицательные числа выполняются первыми. Значение 0 или чуть выше подходит идеально.
         return 0;
     }
 }
