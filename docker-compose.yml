@@ -1,14 +1,21 @@
 version: '3.8'
 
+networks:
+  cinema-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
 services:
-  # 1. Postgres
+  # 1. PostgreSQL (Общий сервер с базами auth_db, movie_db, booking_db, payment_db, keycloak_db)
   postgres-db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: postgres-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB:
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     healthcheck:
@@ -19,8 +26,44 @@ services:
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cinema-net
 
-  # 2. Keycloak
+  # 2. Redis (Для OTP кодов и кэша фильмов)
+  redis:
+    image: redis:7-alpine
+    container_name: teacinema-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cinema-net
+
+  # 3. Apache Kafka (KRaft mode без ZooKeeper)
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: kafka-cinema
+    ports:
+      - "29092:29092" # Доступ с хост-машины (твоего ПК)
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_LISTENERS=INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    networks:
+      - cinema-net
+
+  # 4. Keycloak (IdP)
   keycloak-cinema:
     image: quay.io/keycloak/keycloak:24.0.2
     container_name: keycloak-cinema
@@ -37,38 +80,69 @@ services:
     depends_on:
       postgres-db:
         condition: service_healthy
+    networks:
+      - cinema-net
 
-  # 3. Auth Service
+  # 5. Service Discovery (Eureka Server)
+  discovery-server:
+    build: ./discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    environment:
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
+      - EUREKA_CLIENT_FETCH_REGISTRY=false
+    networks:
+      - cinema-net
+
+  # 6. Auth Service
   auth-service:
-    build: ./auth-service # Путь к папке, где лежит Dockerfile
+    build: ./auth-service
     container_name: auth-service
     ports:
       - "8081:8081"
-      - "9091:9091" # grpc порт
+      - "9091:9091"
     depends_on:
       postgres-db:
-        condition: service_healthy # Ждем, пока поднимется база
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
     environment:
-      - DB_HOST=postgres-db # Внутри сети докера стучимся по имени сервиса!
+      - DB_HOST=postgres-db
       - DB_USERNAME=postgres
-      - DB_PASSWORD=your_password
+      - DB_PASSWORD=password
+      - SPRING_DATA_REDIS_HOST=redis
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    networks:
+      - cinema-net
 
-  # 4. Movie Service
+  # 7. Movie Service
   movie-service:
     build: ./movie-service
     container_name: movie-service
     ports:
       - "8083:8083"
-      - "9093:9093" # grpc порт
+      - "9093:9093"
     depends_on:
       postgres-db:
-        condition: service_healthy # Ждем, пока поднимется база
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+      kafka:
+        condition: service_started
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres
-      - DB_PASSWORD=your_password
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    networks:
+      - cinema-net
 
-  # 5. Booking Service
+  # 8. Booking Service
   booking-service:
     build: ./booking-service
     container_name: booking-service
@@ -76,54 +150,55 @@ services:
       - "8084:8084"
     depends_on:
       postgres-db:
-        condition: service_healthy # Ждем, пока поднимется база
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+      kafka:
+        condition: service_started
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres
-      - DB_PASSWORD=your_password
+      - DB_PASSWORD=password
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    networks:
+      - cinema-net
 
-  # 6. Gateway
+  # 9. Payment Service
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+      kafka:
+        condition: service_started
+    environment:
+      - DB_HOST=postgres-db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=password
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    networks:
+      - cinema-net
+
+  # 10. API Gateway
   gateway-service:
     build: ./gateway-service
     container_name: gateway-service
     ports:
       - "8088:8088"
     depends_on:
-      - auth-service
+      discovery-server:
+        condition: service_started
+      keycloak-cinema:
+        condition: service_started
     environment:
-      - GRPC_CLIENT_AUTH_SERVICE_ADDRESS=static://auth-service:9091
-
-  # 7. Redis
-  redis:
-    image: redis:7-alpine
-    container_name: teacinema-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # 8. Kafka
-  kafka:
-    image: apache/kafka:3.7.0
-    container_name: kafka-cinema
-    ports:
-      - "29092:29092" # Порт для связи извне (с твоего компьютера)
-    environment:
-      - KAFKA_NODE_ID=1
-      - KAFKA_PROCESS_ROLES=broker,controller
-      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      # Слушаем на 9092 внутри докера и на 29092 для внешнего мира
-      - KAFKA_LISTENERS=INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:29092
-      # Анонсируем: внутри сети докера — по имени сервиса, снаружи — через localhost
-      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:29092
-      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-
-volumes:
-  postgres_data:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
+    networks:
+      - cinema-net

@@ -28,6 +28,9 @@ dependencies {
 
     // 7. Стартер для работы Spring Cloud Gateway в качестве Resource Server (OAuth2)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+    // OpenAPI / Swagger для реактивного Gateway
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.3'
 }
 
 tasks.named('test') {
