@@ -202,3 +202,44 @@ services:
       - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
     networks:
       - cinema-net
+
+  # 11. Prometheus (Собирает метрики с наших сервисов)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - cinema-net
+
+  # 12. Grafana Tempo (Собирает трейсы по протоколу OTLP)
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # UI Tempo
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP (Сюда бьют наши Spring Boot сервисы)
+    networks:
+      - cinema-net
+      -
+  # 13. Grafana (Единый дашборд для всего)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    networks:
+      - cinema-net
+    depends_on:
+      - prometheus
+      - tempo

@@ -72,6 +72,22 @@ eureka:
     instance-id: ${spring.application.name}:${server.port}
     prefer-ip-address: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus # Открываем метрики для Prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0 # В проде ставят 0.1 (10%), для тестов пишем 100% трейсов
+  otlp:
+    tracing:
+      endpoint: http://${TEMPO_HOST:localhost}:4318/v1/traces # Куда шлем трейсы (Tempo)
+
+
 # Настройка логирования, чтобы видеть, куда улетают запросы
 logging:
   level:
