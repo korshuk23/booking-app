@@ -21,13 +21,15 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<Booking> createBooking(@RequestHeader("X-User-Id") String userId,
                                                  @RequestParam UUID movieId,
-                                                 @RequestParam UUID sessionId) {
-        log.info("User {} requested booking for movie {}", userId, movieId);
+                                                 @RequestParam UUID sessionId,
+                                                 @RequestParam UUID seatId) {
+        log.info("User {} requested booking for movie {}, seat {}", userId, movieId, seatId);
 
         Booking booking = bookingService.createBooking(
                 UUID.fromString(userId),
                 movieId,
-                sessionId
+                sessionId,
+                seatId
         );
         return new ResponseEntity<>(booking, HttpStatus.CREATED);
     }

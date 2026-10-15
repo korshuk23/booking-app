@@ -32,7 +32,7 @@ public class BookingConsumer {
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "booking-events", groupId = "movie-group")
+    @KafkaListener(topics = "booking-events", groupId = "movie-group-v2")
     @Transactional
     public void consume(BookingEvent event) {
         log.info("Processing booking event: bookingId={}, seatId={}", event.getBookingId(), event.getSeatId());

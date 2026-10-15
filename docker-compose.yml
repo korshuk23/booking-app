@@ -137,7 +137,7 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=password
       - REDIS_HOST=redis
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
     networks:
       - cinema-net
@@ -159,7 +159,8 @@ services:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres
       - DB_PASSWORD=password
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
     networks:
       - cinema-net
@@ -181,7 +182,8 @@ services:
       - DB_HOST=postgres-db
       - DB_USERNAME=postgres
       - DB_PASSWORD=password
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
     networks:
       - cinema-net
@@ -199,7 +201,7 @@ services:
         condition: service_started
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
-      - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
+      # - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
     networks:
       - cinema-net
 
@@ -227,7 +229,7 @@ services:
       - "4318:4318"   # OTLP HTTP (Сюда бьют наши Spring Boot сервисы)
     networks:
       - cinema-net
-      -
+
   # 13. Grafana (Единый дашборд для всего)
   grafana:
     image: grafana/grafana:latest

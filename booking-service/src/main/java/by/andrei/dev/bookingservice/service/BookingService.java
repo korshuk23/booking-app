@@ -27,7 +27,7 @@ public class BookingService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public Booking createBooking(UUID userId, UUID movieId, UUID sessionId) {
+    public Booking createBooking(UUID userId, UUID movieId, UUID sessionId, UUID seatId) {
         MovieResponse movieInfo = movieClient.getMovieInfo(movieId);
 
         if (!movieInfo.getIsAvailable()) {
@@ -38,6 +38,7 @@ public class BookingService {
                 .userId(userId)
                 .movieId(movieId)
                 .sessionId(sessionId)
+                .seatId(seatId)
                 .price(BigDecimal.valueOf(movieInfo.getPrice()))
                 .status("PENDING")
                 .build();
@@ -46,6 +47,8 @@ public class BookingService {
         BookingEvent event = BookingEvent.builder()
                 .bookingId(booking.getId())
                 .movieId(booking.getMovieId())
+                .sessionId(saved.getSessionId())
+                .seatId(saved.getSeatId())
                 .userId(booking.getUserId())
                 .status(booking.getStatus())
                 .price(booking.getPrice())

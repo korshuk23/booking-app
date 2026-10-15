@@ -35,7 +35,6 @@ subprojects {
         if (project.name != 'core') {
             // Трассировка: автоматически связывает HTTP запросы, Kafka события и логи
             implementation 'org.springframework.boot:spring-boot-starter-actuator'
-            implementation 'io.micrometer:micrometer-tracing-bridge-brave'
 
             testImplementation 'org.springframework.boot:spring-boot-starter-test'
         }

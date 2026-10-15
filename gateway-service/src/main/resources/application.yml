@@ -21,7 +21,7 @@ spring:
         jwt:
           # Адрес нашего Realm в Keycloak.
           # По этому URL Гейтвей сам найдет эндпоинт с публичными ключами (JWKS)
-          issuer-uri: http://keycloak-cinema:8080/realms/teacinema
+          jwk-set-uri: http://keycloak-cinema:8080/realms/teacinema/protocol/openid-connect/certs
   cloud:
     gateway:
       routes:
@@ -39,7 +39,7 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/api/v1/auth/**
-            -
+
         # Проксирование OpenAPI документации от сервисов
         - id: booking-docs
           uri: lb://booking-service

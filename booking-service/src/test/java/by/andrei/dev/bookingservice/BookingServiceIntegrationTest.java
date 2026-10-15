@@ -69,6 +69,7 @@ class BookingServiceIntegrationTest {
         UUID userId = UUID.randomUUID();
         UUID movieId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
+        UUID seatId = UUID.randomUUID();
 
         MovieResponse mockMovie = MovieResponse.newBuilder()
                 .setTitle("Интерстеллар")
@@ -79,7 +80,7 @@ class BookingServiceIntegrationTest {
         Mockito.when(movieClient.getMovieInfo(any())).thenReturn(mockMovie);
 
         // When
-        Booking createdBooking = bookingService.createBooking(userId, movieId, sessionId);
+        Booking createdBooking = bookingService.createBooking(userId, movieId, sessionId,seatId);
 
         // Then
         assertThat(createdBooking.getId()).isNotNull();
