@@ -1,14 +1,18 @@
 package by.andrei.dev.movieservice.consumer;
 
 import by.andrei.dev.core.dto.BookingEvent;
+import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.entity.MovieSession;
+import by.andrei.dev.movieservice.entity.OutboxEvent;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
 import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.producer.MovieStatusProducer;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
+import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -25,6 +29,8 @@ public class BookingConsumer {
     private final ProcessedBookingRepository processedBookingRepository;
     private final MovieStatusProducer statusProducer;
     private final SeatRepository seatRepository;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "booking-events", groupId = "movie-group")
     @Transactional
@@ -45,20 +51,41 @@ public class BookingConsumer {
             }
 
             seat.setStatus(Seat.SeatStatus.RESERVED);
+            seat.setReservedAt(java.time.LocalDateTime.now());
             seatRepository.saveAndFlush(seat);
 
             processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
 
-            log.info("Seat {} reserved successfully for booking {}", event.getSeatId(), event.getBookingId());
-            // TODO (В Шаге 3): Здесь должен быть OutboxEvent, а не прямая отправка!
-            //  Пока оставим как есть для понимания.
-            statusProducer.sendStatus(event.getBookingId(), event.getUserId(), event.getSessionId(), event.getPrice(),
-                    "SEATS_RESERVED", "Seat locked for payment");
+            saveOutboxEvent(event, "SEATS_RESERVED", "Seat locked for payment");
+
         } catch (ObjectOptimisticLockingFailureException | IllegalStateException e) {
             log.warn("Failed to reserve seat for booking {}: someone else took it first!", event.getBookingId());
-            // Возвращаем отказ в Booking Service
-            statusProducer.sendStatus(event.getBookingId(), event.getUserId(), event.getSessionId(), event.getPrice(),
-                    "REJECTED", "Seat already taken");
+            saveOutboxEvent(event, "REJECTED", "Seat already taken or error occurred");
+        }
+    }
+
+    private void saveOutboxEvent(BookingEvent event, String status, String message) {
+        try {
+            BookingStatusEvent statusEvent = BookingStatusEvent.builder()
+                    .bookingId(event.getBookingId())
+                    .userId(event.getUserId())
+                    .sessionId(event.getSessionId())
+                    .seatId(event.getSeatId())
+                    .price(event.getPrice())
+                    .status(status)
+                    .message(message)
+                    .build();
+
+            OutboxEvent outboxEvent = OutboxEvent.builder()
+                    .aggregateType("BOOKING_STATUS")
+                    .aggregateId(event.getBookingId())
+                    .eventType(status)
+                    .payload(objectMapper.writeValueAsString(statusEvent))
+                    .build();
+
+            outboxRepository.save(outboxEvent);
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to serialize outbox event", ex);
         }
     }
 

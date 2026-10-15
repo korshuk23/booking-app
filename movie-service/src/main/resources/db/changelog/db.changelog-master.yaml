@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changeset/v3-add-movie-sessions.sql
   - include:
       file: db/changelog/changeset/v4-add-seats.sql
+  - include:
+      file: db/changelog/changeset/v5-create-outbox-table.sql
