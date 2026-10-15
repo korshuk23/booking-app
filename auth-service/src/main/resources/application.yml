@@ -40,8 +40,7 @@ grpc:
   server:
     port: 9091
 
-jwt:
-  # Можно сгенерировать рандомную строку через openssl rand -base64 32
-  secret: ${JWT_SECRET:your-very-secure-and-long-secret-key-for-teacinema-project}
-  #аксес токен(типо максы 15 мин - час по идее потом сделать)
-  expiration: 86400000 # 24 часа
+keycloak:
+  token-uri: http://keycloak-cinema:8080/realms/teacinema/protocol/openid-connect/token
+  client-id: teacinema-backend-client
+  client-secret: "твой-секрет-из-админки-keycloak" # В реальном проекте берется из ENV

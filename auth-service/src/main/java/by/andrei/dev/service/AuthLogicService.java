@@ -3,7 +3,6 @@ package by.andrei.dev.service;
 import by.andrei.dev.entity.User;
 import by.andrei.dev.repository.OtpRepository;
 import by.andrei.dev.repository.UserRepository;
-import by.andrei.dev.utils.JwtUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,7 @@ import java.util.Random;
 public class AuthLogicService {
     private final UserRepository userRepository;
     private final OtpRepository otpRepository;
-    private final JwtUtils jwtUtils;
+    private final KeycloakIntegrationService keycloakIntegrationService;
 
     @Transactional
     public void sendOtp(String identifier) {
@@ -35,20 +34,23 @@ public class AuthLogicService {
 
     public String verifyOtpAndGenerateToken(String identifier, String code) {
         OtpCode savedOtp = otpRepository.findById(identifier)
-                .orElseThrow(() -> new RuntimeException("Код не найден или истек"));
+                .orElseThrow(() -> new RuntimeException("OTP code not found or expired"));
 
         if (!savedOtp.getCode().equals(code)) {
-            throw new RuntimeException("Неверный код");
+            throw new RuntimeException("Invalid OTP code");
         }
 
         otpRepository.delete(savedOtp);
 
-        User user = userRepository.findByIdentifier(identifier)
-                .orElseGet(()-> userRepository.save(User.builder()
+        userRepository.findByIdentifier(identifier)
+                .orElseGet(() -> userRepository.save(User.builder()
                         .identifier(identifier)
                         .role("USER")
                         .build()));
 
-        return jwtUtils.generateToken(user.getId(), user.getRole());
+        // TODO: Если юзера нет в самом Keycloak, его нужно там создать через Keycloak Admin REST Client.
+        // Пока предполагаем, что юзер там есть (или создается асинхронно).
+
+        return keycloakIntegrationService.getTokenForUser(identifier);
     }
 }
