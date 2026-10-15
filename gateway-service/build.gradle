@@ -31,6 +31,9 @@ dependencies {
 
     // OpenAPI / Swagger для реактивного Gateway
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.3'
+
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
 }
 
 tasks.named('test') {

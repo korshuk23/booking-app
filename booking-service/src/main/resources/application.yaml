@@ -46,3 +46,17 @@ grpc:
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      movieServiceCb:
+        slidingWindowSize: 10 # Анализируем последние 10 запросов
+        failureRateThreshold: 50 # Если 50% упали - размыкаем цепь
+        waitDurationInOpenState: 10s # Ждем 10 секунд перед тестовым запуском
+        permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    instances:
+      movieServiceRetry:
+        maxAttempts: 3
+        waitDuration: 500ms

@@ -4,6 +4,8 @@ package by.andrei.dev.bookingservice.service;
 import com.korshuk.dev.core.grpc.MovieRequest;
 import com.korshuk.dev.core.grpc.MovieResponse;
 import com.korshuk.dev.core.grpc.MovieServiceGrpc;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ public class MovieClient {
     @GrpcClient("movie-service")
     private MovieServiceGrpc.MovieServiceBlockingStub movieStub;
 
+    @CircuitBreaker(name = "movieServiceCb", fallbackMethod = "fallbackGetMovieInfo")
+    @Retry(name = "movieServiceRetry")
     public MovieResponse getMovieInfo(UUID movieId) {
         try {
             MovieRequest request = MovieRequest.newBuilder()
@@ -28,5 +32,10 @@ public class MovieClient {
             log.error("Error while calling Movie Service for ID: {}", movieId, e);
             throw new RuntimeException("Movie Service is unavailable");
         }
+    }
+
+    public MovieResponse fallbackGetMovieInfo(UUID movieId, Throwable t) {
+        log.error("Circuit Breaker opened! Fallback for movie {}. Reason: {}", movieId, t.getMessage());
+        throw new RuntimeException("Каталог фильмов временно недоступен. Попробуйте позже.");
     }
 }
