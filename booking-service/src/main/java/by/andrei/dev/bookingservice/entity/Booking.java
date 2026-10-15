@@ -29,6 +29,9 @@ public class Booking {
     @Column(name = "session_id", nullable = false)
     private UUID sessionId;
 
+    @Column(name = "seatId", nullable = false)
+    private UUID seatId;
+
     @Column(nullable = false)
     private String status;
 

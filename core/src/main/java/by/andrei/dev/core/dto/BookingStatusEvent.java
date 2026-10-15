@@ -16,6 +16,7 @@ public class BookingStatusEvent {
     private UUID bookingId;
     private UUID userId;
     private UUID sessionId;
+    private UUID seatId;
     private BigDecimal price;
     private String status;
     private String message;

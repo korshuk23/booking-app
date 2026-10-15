@@ -17,6 +17,7 @@ public class PaymentEvent {
     private UUID bookingId;
     private UUID userId;
     private UUID sessionId;
+    private UUID seatId;
     private BigDecimal amount;
     private String status; // SUCCESS, FAILED
     private String failureReason;

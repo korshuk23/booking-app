@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS bookings
     user_id    UUID        NOT NULL,
     movie_id   UUID        NOT NULL,
     session_id UUID      NOT NULL,
+    seatId     UUID      NOT NULL,
     status     VARCHAR(50) NOT NULL,
     price      DECIMAL(10, 2),
     created_at TIMESTAMP        DEFAULT CURRENT_TIMESTAMP

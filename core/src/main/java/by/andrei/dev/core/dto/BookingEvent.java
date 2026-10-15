@@ -16,6 +16,7 @@ public class BookingEvent {
     private UUID bookingId;
     private UUID movieId;
     private UUID sessionId;
+    private UUID seatId;
     private UUID userId;
     private String status;
     private BigDecimal price;
