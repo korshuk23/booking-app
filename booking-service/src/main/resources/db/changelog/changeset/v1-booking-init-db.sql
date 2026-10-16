@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS bookings
     movie_id   UUID        NOT NULL,
     session_id UUID      NOT NULL,
     /*Поправить на seat_id*/
-    seatId     UUID      NOT NULL,
+    seat_id     UUID      NOT NULL,
     status     VARCHAR(50) NOT NULL,
     price      DECIMAL(10, 2),
     created_at TIMESTAMP        DEFAULT CURRENT_TIMESTAMP

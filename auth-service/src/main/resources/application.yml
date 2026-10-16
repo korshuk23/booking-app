@@ -43,7 +43,7 @@ grpc:
 keycloak:
   token-uri: http://keycloak-cinema:8080/realms/teacinema/protocol/openid-connect/token
   client-id: teacinema-backend-client
-  client-secret: "твой-секрет-из-админки-keycloak" # В реальном проекте берется из ENV
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:cinema-secret-key-12345}
 
 management:
   endpoints:

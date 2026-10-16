@@ -76,7 +76,9 @@ services:
       - KC_DB_PASSWORD=password
     ports:
       - "8080:8080"
-    command: start-dev
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak/teacinema-realm.json:/opt/keycloak/data/import/teacinema-realm.json:ro
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -115,6 +117,8 @@ services:
       - DB_PASSWORD=password
       - SPRING_DATA_REDIS_HOST=redis
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - KEYCLOAK_CLIENT_SECRET=cinema-secret-key-12345
+      - TEMPO_HOST=tempo
     networks:
       - cinema-net
 
@@ -139,6 +143,7 @@ services:
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - TEMPO_HOST=tempo
     networks:
       - cinema-net
 
@@ -162,6 +167,7 @@ services:
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - TEMPO_HOST=tempo
     networks:
       - cinema-net
 
@@ -185,6 +191,7 @@ services:
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - TEMPO_HOST=tempo
     networks:
       - cinema-net
 
@@ -201,6 +208,7 @@ services:
         condition: service_started
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - TEMPO_HOST=tempo
       # - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
     networks:
       - cinema-net

@@ -1,0 +1,72 @@
+{
+  "realm": "teacinema",
+  "enabled": true,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "USER",
+        "description": "Обычный зритель"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Администратор кинотеатра"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "teacinema-backend-client",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "cinema-secret-key-12345",
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "user@cinema.dev",
+      "enabled": true,
+      "email": "user@cinema.dev",
+      "firstName": "Cinema",
+      "lastName": "User",
+      "emailVerified": true,
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "default-secure-password-123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ]
+    },
+    {
+      "username": "admin@cinema.dev",
+      "enabled": true,
+      "email": "admin@cinema.dev",
+      "firstName": "Cinema",
+      "lastName": "Admin",
+      "emailVerified": true,
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin-secure-password-123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN",
+        "USER"
+      ]
+    }
+  ]
+}
