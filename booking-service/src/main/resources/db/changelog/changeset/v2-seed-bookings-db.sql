@@ -1,5 +1,5 @@
 --changeset korshuk:2
-INSERT INTO bookings (id, user_id, movie_id, session_id, seatId, status, price)
+INSERT INTO bookings (id, user_id, movie_id, session_id, seat_id, status, price)
 VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'PENDING',
         15.50),
        (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'PENDING',

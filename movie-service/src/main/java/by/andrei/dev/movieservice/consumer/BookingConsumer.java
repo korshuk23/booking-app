@@ -3,12 +3,10 @@ package by.andrei.dev.movieservice.consumer;
 import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
-import by.andrei.dev.movieservice.entity.MovieSession;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
 import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.producer.MovieStatusProducer;
-import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
@@ -16,11 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
 
 @Service
 @Slf4j
@@ -43,8 +38,7 @@ public class BookingConsumer {
         }
 
         try {
-            Seat seat = seatRepository.findById(event.getBookingId())
-                    .orElseThrow(() -> new IllegalArgumentException("Seat not found"));
+            Seat seat = seatRepository.findById(event.getSeatId()).orElseThrow(() -> new IllegalArgumentException("Seat not found"));
 
             if (seat.getStatus() != Seat.SeatStatus.FREE) {
                 throw new IllegalStateException("Seat is already taken");
@@ -58,30 +52,19 @@ public class BookingConsumer {
 
             saveOutboxEvent(event, "SEATS_RESERVED", "Seat locked for payment");
 
-        } catch (ObjectOptimisticLockingFailureException | IllegalStateException e) {
-            log.warn("Failed to reserve seat for booking {}: someone else took it first!", event.getBookingId());
-            saveOutboxEvent(event, "REJECTED", "Seat already taken or error occurred");
+            log.info("Seat {} successfully RESERVED for booking {}", event.getSeatId(), event.getBookingId());
+
+        } catch (Exception e) { // Перехватываем ВСЕ ошибки (включая если кресло занято или не найдено)
+            log.warn("Failed to reserve seat for booking {}: {}", event.getBookingId(), e.getMessage());
+            saveOutboxEvent(event, "REJECTED", e.getMessage());
         }
     }
 
     private void saveOutboxEvent(BookingEvent event, String status, String message) {
         try {
-            BookingStatusEvent statusEvent = BookingStatusEvent.builder()
-                    .bookingId(event.getBookingId())
-                    .userId(event.getUserId())
-                    .sessionId(event.getSessionId())
-                    .seatId(event.getSeatId())
-                    .price(event.getPrice())
-                    .status(status)
-                    .message(message)
-                    .build();
+            BookingStatusEvent statusEvent = BookingStatusEvent.builder().bookingId(event.getBookingId()).userId(event.getUserId()).sessionId(event.getSessionId()).seatId(event.getSeatId()).price(event.getPrice()).status(status).message(message).build();
 
-            OutboxEvent outboxEvent = OutboxEvent.builder()
-                    .aggregateType("BOOKING_STATUS")
-                    .aggregateId(event.getBookingId())
-                    .eventType(status)
-                    .payload(objectMapper.writeValueAsString(statusEvent))
-                    .build();
+            OutboxEvent outboxEvent = OutboxEvent.builder().aggregateType("BOOKING_STATUS").aggregateId(event.getBookingId()).eventType(status).payload(objectMapper.writeValueAsString(statusEvent)).build();
 
             outboxRepository.save(outboxEvent);
         } catch (Exception ex) {

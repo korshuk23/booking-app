@@ -1,6 +1,6 @@
 package by.andrei.dev.movieservice.producer;
 
-import by.andrei.dev.core.dto.BookingEvent;
+import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +21,7 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
-    private static final String TOPIC = "booking-events";
+    private static final String TOPIC = "booking-status-events";
 
     @Scheduled(fixedDelay = 1000)
     @Transactional
@@ -35,8 +35,8 @@ public class OutboxPublisher {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                BookingEvent bookingEvent = objectMapper.readValue(event.getPayload(), BookingEvent.class);
-                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), bookingEvent);
+                BookingStatusEvent statusEvent = objectMapper.readValue(event.getPayload(), BookingStatusEvent.class);
+                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), statusEvent);
                 event.setStatus("SENT");
                 event.setSentAt(LocalDateTime.now());
                 outboxRepository.save(event);
