@@ -15,6 +15,7 @@ public class PaymentGateway {
      */
     public boolean processPayment(BigDecimal amount) {
         // Симулируем 90% успешных оплат и 10% сбоев (нехватка средств/отклонено банком)
-        return random.nextInt(100) < 90;
+        //return random.nextInt(100) < 90;
+        return true;
     }
 }

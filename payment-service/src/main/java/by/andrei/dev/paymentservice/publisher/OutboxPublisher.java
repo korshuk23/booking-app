@@ -1,6 +1,7 @@
 package by.andrei.dev.paymentservice.publisher;
 
 import by.andrei.dev.core.dto.BookingEvent;
+import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.paymentservice.entity.OutboxEvent;
 import by.andrei.dev.paymentservice.repository.OutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +22,7 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
-    private static final String TOPIC = "booking-events";
+    private static final String TOPIC = "payment-events";
 
     @Scheduled(fixedDelay = 1000)
     @Transactional
@@ -35,14 +36,14 @@ public class OutboxPublisher {
 
         for (OutboxEvent event : pendingEvents) {
             try {
-                BookingEvent bookingEvent = objectMapper.readValue(event.getPayload(), BookingEvent.class);
-                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), bookingEvent);
+                PaymentEvent paymentEvent = objectMapper.readValue(event.getPayload(), PaymentEvent.class);
+                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), paymentEvent);
                 event.setStatus("SENT");
                 event.setSentAt(LocalDateTime.now());
                 outboxRepository.save(event);
-                log.info("Successfully published outbox event {} to Kafka topic {}", event.getId(), TOPIC);
+                log.info("Payment outbox event {} sent to topic {}", event.getId(), TOPIC);
             } catch (Exception e) {
-                log.error("Failed to publish outbox event {}. Will retry on next tick.", event.getId(), e);
+                log.error("Failed to publish payment event {}: {}", event.getId(), e.getMessage());
             }
         }
     }
