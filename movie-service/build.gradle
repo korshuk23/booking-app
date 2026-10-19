@@ -41,6 +41,11 @@ dependencies {
     // 10. OpenTelemetry для распределенной трассировки
     implementation 'io.micrometer:micrometer-tracing-bridge-otel'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+
+    // 11. Testcontainers для реального PostgreSQL и Kafka
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+    testImplementation 'org.testcontainers:kafka:1.20.4'
 }
 
 tasks.named('test') {

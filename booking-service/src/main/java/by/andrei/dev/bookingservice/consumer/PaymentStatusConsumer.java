@@ -1,6 +1,7 @@
 package by.andrei.dev.bookingservice.consumer;
 
 import by.andrei.dev.bookingservice.repository.BookingRepository;
+import by.andrei.dev.bookingservice.service.BookingNotificationService;
 import by.andrei.dev.core.dto.PaymentEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentStatusConsumer {
 
     private final BookingRepository bookingRepository;
+    private final BookingNotificationService notificationService;
 
     @KafkaListener(topics = "payment-events", groupId = "booking-payment-group")
     @Transactional
@@ -28,6 +30,12 @@ public class PaymentStatusConsumer {
             }
             bookingRepository.save(booking);
             log.info("Booking {} status finalized to {}", booking.getId(), booking.getStatus());
+
+            notificationService.sendBookingUpdate(
+                    booking.getId(),
+                    booking.getStatus(),
+                    "SUCCESS".equals(event.getStatus()) ? "Payment confirmed! Ticket issued." : event.getFailureReason()
+            );
         });
     }
 }

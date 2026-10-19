@@ -1,6 +1,7 @@
 package by.andrei.dev.bookingservice.consumer;
 
 import by.andrei.dev.bookingservice.repository.BookingRepository;
+import by.andrei.dev.bookingservice.service.BookingNotificationService;
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class MovieStatusConsumer {
     private final BookingRepository bookingRepository;
+    private final BookingNotificationService notificationService;
 
     @KafkaListener(topics = "booking-status-events", groupId = "booking-group")
     @Transactional
@@ -23,6 +25,9 @@ public class MovieStatusConsumer {
             booking.setStatus(event.getStatus());
             bookingRepository.save(booking);
             log.info("Booking {} updated to {}", event.getBookingId(), event.getStatus());
+            if ("REJECTED".equals(event.getStatus())) {
+                notificationService.sendBookingUpdate(booking.getId(), "REJECTED", event.getMessage());
+            }
         });
     }
 }
