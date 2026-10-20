@@ -42,6 +42,7 @@ class BookingServiceIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("eureka.client.enabled", () -> "false");
+        registry.add("outbox.publisher.delay", () -> "3600000");
     }
 
     @Autowired

@@ -40,6 +40,7 @@ class BookingSagaConsumersIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("eureka.client.enabled", () -> "false");
         registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
+        registry.add("outbox.publisher.delay", () -> "3600000");
     }
 
     @Autowired

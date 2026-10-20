@@ -24,7 +24,7 @@ public class OutboxPublisher {
     private final ObjectMapper objectMapper;
     private static final String TOPIC = "booking-events";
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelayString = "${outbox.publisher.delay:1000}")
     @Transactional
     public void publishPendingEvents() {
         List<OutboxEvent> pendingEvents = outboxRepository.findPendingEventsForProcessing();
