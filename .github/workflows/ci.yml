@@ -3,99 +3,78 @@ name: Cinema Microservices CI/CD Pipeline
 on:
   push:
     branches: [ "master", "main" ]
+    # НЕ запускаем пайплайн, если изменились только доки или ридми (экономим квоту!)
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'docker-compose.yml'
   pull_request:
     branches: [ "master", "main" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
 
-# Отменяем старые запущенные билды в той же ветке, если прилетел новый коммит
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # =============================================================
-  # ЭТАП 1: Компиляция, миграции и запуск интеграционных тестов
-  # =============================================================
-  test-and-verify:
-    name: Run Tests & Testcontainers
+  # =========================================================================
+  # ЕДИНЫЙ ВЫСОКОСКОРОСТНОЙ РАННЕР (Single-Runner Pipeline)
+  # =========================================================================
+  pipeline:
+    name: Test, Build & Package
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Обновлено на v5 (убирает все варнинги о депрекейшене Node.js)
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
-          # Включаем автоматический кэш зависимостей Gradle
           cache: 'gradle'
 
       - name: Make Gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Run all tests (including Testcontainers)
+      # 1. Запуск тестов с параллелизацией и Build Cache
+      - name: Run Unit & Integration Tests (Testcontainers)
         env:
-          # Ограничиваем аппетиты Gradle в виртуалке GitHub Actions (доступно 7GB RAM)
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
         run: |
-          ./gradlew test --no-daemon --continue --stacktrace
+          ./gradlew test --no-daemon --build-cache --parallel --stacktrace
 
-      - name: Upload Test Results if failed
+      # 2. Выгрузка отчетов ТОЛЬКО при падении
+      - name: Upload Test Reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: |
-            **/build/reports/tests/
-            **/build/test-results/
-          retention-days: 7
+          path: "**/build/reports/tests/"
+          retention-days: 5
 
-  # =============================================================
-  # ЭТАП 2: Параллельная сборка JAR и проверка Docker-образов
-  # =============================================================
-  build-docker-images:
-    name: Build Docker Image (${{ matrix.service }})
-    needs: test-and-verify
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Запускаем параллельную сборку сразу для всех сервисов!
-        service:
-          - discovery-server
-          - auth-service
-          - gateway-service
-          - movie-service
-          - booking-service
-          - payment-service
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Make Gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Compile BootJar for ${{ matrix.service }}
+      # 3. Быстрая сборка Fat JAR сразу для всех сервисов в ОДНОМ процессе (без повторного прогона тестов!)
+      - name: Compile BootJars (Parallel)
         run: |
-          ./gradlew :${{ matrix.service }}:bootJar --no-daemon
+          ./gradlew bootJar --no-daemon --build-cache --parallel -x test
 
-      - name: Build Docker Image
+      # 4. Сборка Docker-образов на том же раннере за 15 секунд (без спавна 6 отдельных машин!)
+      - name: Build Docker Images
         run: |
-          docker build \
-            -t cinema/${{ matrix.service }}:${{ github.sha }} \
-            -f ./${{ matrix.service }}/Dockerfile \
-            ./${{ matrix.service }}
-
-      - name: Tag as latest
-        run: |
-          docker tag cinema/${{ matrix.service }}:${{ github.sha }} cinema/${{ matrix.service }}:latest
+          services=("discovery-server" "auth-service" "gateway-service" "movie-service" "booking-service" "payment-service")
+          for s in "${services[@]}"; do
+            echo "===> Building Docker image for $s..."
+            docker build \
+              -t "cinema/$s:latest" \
+              -t "cinema/$s:${{ github.sha }}" \
+              -f "./$s/Dockerfile" \
+              "./$s"
+          done
+          echo "===> All 6 Docker images built successfully!"
