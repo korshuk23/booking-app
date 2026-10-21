@@ -4,6 +4,7 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +14,10 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,8 +36,11 @@ public class KafkaConfig {
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
+        configProps.put(ProducerConfig.ACKS_CONFIG, "all");
+        configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        configProps.put(ProducerConfig.RETRIES_CONFIG, Integer.MAX_VALUE);
+
         JsonSerializer<Object> serializer = new JsonSerializer<>();
-        // Выключаем заголовки типов, чтобы не было конфликта пакетов (by.andrei.booking vs by.andrei.movie)
         serializer.setAddTypeInfo(false);
 
         return new DefaultKafkaProducerFactory<>(configProps, new StringSerializer(), serializer);
@@ -51,15 +58,27 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "booking-group");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
+        props.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), new StringDeserializer());
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
+    public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
+        // Если сообщение "не переваривается", отправляем его в топик с постфиксом .dlq (например, payment-events.dlq)
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
+                (record, exception) -> new TopicPartition(record.topic() + ".dlq", record.partition()));
+
+        // Настройка ретраев: 3 попытки, 1 секунда между попытками
+        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(DefaultErrorHandler errorHandler) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        // ВОТ ЭТОТ КОНВЕРТЕР АВТОМАТИЧЕСКИ ПРЕВРАТИТ JSON В BookingStatusEvent:
         factory.setRecordMessageConverter(new org.springframework.kafka.support.converter.StringJsonMessageConverter());
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 
@@ -73,5 +92,10 @@ public class KafkaConfig {
     @Bean
     public NewTopic bookingEventsTopic() {
         return TopicBuilder.name("booking-events").partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic bookingEventsDlqTopic() {
+        return TopicBuilder.name("booking-events.dlq").partitions(3).replicas(1).build();
     }
 }
