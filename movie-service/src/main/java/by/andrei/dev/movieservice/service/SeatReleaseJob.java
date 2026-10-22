@@ -4,6 +4,7 @@ import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +19,13 @@ public class SeatReleaseJob {
 
     private final SeatRepository seatRepository;
 
-    @Scheduled(fixedRate = 60000)
+    @Value("${seat.reservation.timeout-minutes:15}")
+    private long timeoutMinutes;
+
+    @Scheduled(fixedRateString = "${seat.release.job-rate-ms:60000}")
     @Transactional
     public void releaseExpiredReservations() {
-        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(15);
+        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(timeoutMinutes);
 
         List<Seat> expiredSeats = seatRepository.findByStatusAndReservedAtBefore(
                 Seat.SeatStatus.RESERVED, expirationTime

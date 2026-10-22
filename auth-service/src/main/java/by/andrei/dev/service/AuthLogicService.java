@@ -6,8 +6,10 @@ import by.andrei.dev.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.Random;
 
 @Service
@@ -18,9 +20,16 @@ public class AuthLogicService {
     private final OtpRepository otpRepository;
     private final KeycloakIntegrationService keycloakIntegrationService;
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    @Value("${auth.otp.length:6}")
+    private int otpLength;
+
     @Transactional
     public void sendOtp(String identifier) {
-        String code = String.format("%06d", new Random().nextInt(999999));
+        int bound = (int) Math.pow(10, otpLength);
+        String format = "%0" + otpLength + "d";
+        String code = String.format(format, SECURE_RANDOM.nextInt(bound));
 
         OtpCode otp = OtpCode.builder()
                 .identifier(identifier)

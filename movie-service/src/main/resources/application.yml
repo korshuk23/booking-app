@@ -42,6 +42,21 @@ eureka:
     instance-id: ${spring.application.name}:${server.port}
     prefer-ip-address: true
 
+seat:
+  reservation:
+    timeout-minutes: ${SEAT_RESERVATION_TIMEOUT_MIN:15}
+  release:
+    job-rate-ms: ${SEAT_RELEASE_JOB_RATE_MS:60000}
+
+movie:
+  cache:
+    ttl-minutes: ${MOVIE_CACHE_TTL_MIN:10}
+
+outbox:
+  retention:
+    days: ${OUTBOX_RETENTION_DAYS:3}
+  cleanup:
+    cron: ${OUTBOX_CLEANUP_CRON:0 0 * * * *}
 
 grpc:
   server:

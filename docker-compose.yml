@@ -13,13 +13,13 @@ services:
     image: postgres:15-alpine
     container_name: postgres-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -68,12 +68,12 @@ services:
     image: quay.io/keycloak/keycloak:24.0.2
     container_name: keycloak-cinema
     environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KC_DB=postgres
       - KC_DB_URL=jdbc:postgresql://postgres-db:5432/keycloak_db
-      - KC_DB_USERNAME=postgres
-      - KC_DB_PASSWORD=password
+      - KC_DB_USERNAME==${POSTGRES_USER}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "8080:8080"
     command: start-dev --import-realm
@@ -113,11 +113,13 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=password
+      - DB_USERNAME=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
       - SPRING_DATA_REDIS_HOST=redis
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
-      - KEYCLOAK_CLIENT_SECRET=cinema-secret-key-12345
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - KEYCLOAK_USER_DEFAULT_PASSWORD=${KEYCLOAK_USER_DEFAULT_PASSWORD}
+      - AUTH_OTP_EXPIRATION_SEC=${AUTH_OTP_EXPIRATION_SEC:-300}
       - TEMPO_HOST=tempo
     networks:
       - cinema-net
@@ -138,11 +140,14 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=password
+      - DB_USERNAME=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - SEAT_RESERVATION_TIMEOUT_MIN=${SEAT_RESERVATION_TIMEOUT_MIN:-15}
+      - MOVIE_CACHE_TTL_MIN=${MOVIE_CACHE_TTL_MIN:-10}
+      - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
       - TEMPO_HOST=tempo
     networks:
       - cinema-net
@@ -162,11 +167,13 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=password
+      - DB_USERNAME=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - BOOKING_SSE_TIMEOUT_MS=${BOOKING_SSE_TIMEOUT_MS:-60000}
+      - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
       - TEMPO_HOST=tempo
     networks:
       - cinema-net
@@ -186,11 +193,12 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=password
+      - DB_USERNAME=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
       - TEMPO_HOST=tempo
     networks:
       - cinema-net

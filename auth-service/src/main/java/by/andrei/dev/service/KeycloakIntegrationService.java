@@ -25,6 +25,9 @@ public class KeycloakIntegrationService {
     @Value("${keycloak.client-secret}")
     private String clientSecret;
 
+    @Value("${keycloak.user-default-password}")
+    private String defaultUserPassword;
+
     private final RestClient restClient = RestClient.create();
 
     /**
@@ -42,7 +45,7 @@ public class KeycloakIntegrationService {
         formData.add("grant_type", "password");
         formData.add("username", identifier);
         // Секретный пароль, который мы задаем всем юзерам при регистрации через наш auth-service
-        formData.add("password", "default-secure-password-123");
+        formData.add("password", defaultUserPassword);
 
         try {
             Map<String, Object> response = restClient.post()

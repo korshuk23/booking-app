@@ -1,6 +1,7 @@
 package by.andrei.dev.bookingservice.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -14,8 +15,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BookingNotificationService {
     private final Map<UUID, SseEmitter> emitters = new ConcurrentHashMap<>();
 
+    @Value("${booking.sse.timeout-ms:60000}")
+    private long sseTimeoutMs;
+
     public SseEmitter subscribe(UUID bookingId) {
-        SseEmitter emitter = new SseEmitter(60_000L);
+        SseEmitter emitter = new SseEmitter(sseTimeoutMs);
 
         emitters.put(bookingId, emitter);
 

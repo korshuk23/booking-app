@@ -26,6 +26,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+outbox:
+  retention:
+    days: ${OUTBOX_RETENTION_DAYS:3}
+  cleanup:
+    cron: ${OUTBOX_CLEANUP_CRON:0 0 * * * *}
+
 eureka:
   client:
     service-url:

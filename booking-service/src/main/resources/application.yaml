@@ -28,6 +28,15 @@ eureka:
     instance-id: ${spring.application.name}:${server.port}
     prefer-ip-address: true
 
+booking:
+  sse:
+    timeout-ms: ${BOOKING_SSE_TIMEOUT_MS:60000}
+
+outbox:
+  retention:
+    days: ${OUTBOX_RETENTION_DAYS:3}
+  cleanup:
+    cron: ${OUTBOX_CLEANUP_CRON:0 0 * * * *}
 
 grpc:
   client:

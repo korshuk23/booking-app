@@ -4,8 +4,8 @@ server:
 spring:
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   application:
     name: auth-service
   datasource:
@@ -26,10 +26,15 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+auth:
+  otp:
+    length: ${AUTH_OTP_LENGTH:6}
+    expiration-sec: ${AUTH_OTP_EXPIRATION_SEC:300}
+
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
     register-with-eureka: true
     fetch-registry: true
   instance:
@@ -44,6 +49,7 @@ keycloak:
   token-uri: http://keycloak-cinema:8080/realms/teacinema/protocol/openid-connect/token
   client-id: teacinema-backend-client
   client-secret: ${KEYCLOAK_CLIENT_SECRET:cinema-secret-key-12345}
+  user-default-password: ${KEYCLOAK_USER_DEFAULT_PASSWORD:default-secure-password-123}
 
 management:
   endpoints:
