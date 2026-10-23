@@ -7,9 +7,18 @@ networks:
 volumes:
   postgres_data:
 
+# .env
+x-common-env: &common-env
+  env_file:
+    - .env
+  networks:
+    - cinema-net
+
+
 services:
   # 1. PostgreSQL (Общий сервер с базами auth_db, movie_db, booking_db, payment_db, keycloak_db)
   postgres-db:
+    <<: *common-env
     image: postgres:15-alpine
     container_name: postgres-db
     environment:
@@ -26,45 +35,42 @@ services:
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - cinema-net
 
   # 2. Redis (Для OTP кодов и кэша фильмов)
   redis:
+    <<: *common-env
     image: redis:7-alpine
     container_name: teacinema-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
-    networks:
-      - cinema-net
 
   # 3. Apache Kafka (KRaft mode без ZooKeeper)
   kafka:
+    <<: *common-env
     image: apache/kafka:3.7.0
     container_name: kafka-cinema
     ports:
-      - "29092:29092" # Доступ с хост-машины (твоего ПК)
+      - "${KAFKA_PORT:-29092}:29092"
     environment:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_LISTENERS=INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:29092
-      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:${KAFKA_PORT:-29092}
       - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
       - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-    networks:
-      - cinema-net
 
   # 4. Keycloak (IdP)
   keycloak-cinema:
+    <<: *common-env
     image: quay.io/keycloak/keycloak:24.0.2
     container_name: keycloak-cinema
     environment:
@@ -72,33 +78,31 @@ services:
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
       - KC_DB=postgres
       - KC_DB_URL=jdbc:postgresql://postgres-db:5432/keycloak_db
-      - KC_DB_USERNAME==${POSTGRES_USER}
+      - KC_DB_USERNAME=${POSTGRES_USER}
       - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
     ports:
-      - "8080:8080"
+      - "${KEYCLOAK_PORT:-8080}:8080"
     command: start-dev --import-realm
     volumes:
       - ./keycloak/teacinema-realm.json:/opt/keycloak/data/import/teacinema-realm.json:ro
     depends_on:
       postgres-db:
         condition: service_healthy
-    networks:
-      - cinema-net
 
   # 5. Service Discovery (Eureka Server)
   discovery-server:
+    <<: *common-env
     build: ./discovery-server
     container_name: discovery-server
     ports:
-      - "8761:8761"
+      - "${DISCOVERY_PORT:-8761}:8761"
     environment:
       - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
       - EUREKA_CLIENT_FETCH_REGISTRY=false
-    networks:
-      - cinema-net
 
   # 6. Auth Service
   auth-service:
+    <<: *common-env
     build: ./auth-service
     container_name: auth-service
     ports:
@@ -111,21 +115,26 @@ services:
         condition: service_healthy
       discovery-server:
         condition: service_started
+      keycloak-cinema:
+        condition: service_started
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - SPRING_DATA_REDIS_HOST=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
-      - KEYCLOAK_USER_DEFAULT_PASSWORD=${KEYCLOAK_USER_DEFAULT_PASSWORD}
+      - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_HMAC_SECRET=${KEYCLOAK_HMAC_SECRET}
+      - AUTH_OTP_LENGTH=${AUTH_OTP_LENGTH:-6}
       - AUTH_OTP_EXPIRATION_SEC=${AUTH_OTP_EXPIRATION_SEC:-300}
       - TEMPO_HOST=tempo
-    networks:
-      - cinema-net
 
   # 7. Movie Service
   movie-service:
+    <<: *common-env
     build: ./movie-service
     container_name: movie-service
     ports:
@@ -138,22 +147,26 @@ services:
         condition: service_started
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
     environment:
       - DB_HOST=postgres-db
       - DB_USERNAME=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - SEAT_RESERVATION_TIMEOUT_MIN=${SEAT_RESERVATION_TIMEOUT_MIN:-15}
+      - SEAT_RELEASE_JOB_RATE_MS=${SEAT_RELEASE_JOB_RATE_MS:-60000}
       - MOVIE_CACHE_TTL_MIN=${MOVIE_CACHE_TTL_MIN:-10}
       - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
+      - OUTBOX_CLEANUP_CRON=${OUTBOX_CLEANUP_CRON:-0 0 * * * *}
       - TEMPO_HOST=tempo
-    networks:
-      - cinema-net
 
   # 8. Booking Service
   booking-service:
+    <<: *common-env
     build: ./booking-service
     container_name: booking-service
     ports:
@@ -167,19 +180,19 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
+      - DB_PORT=5432
       - DB_USERNAME=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - BOOKING_SSE_TIMEOUT_MS=${BOOKING_SSE_TIMEOUT_MS:-60000}
       - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
+      - OUTBOX_CLEANUP_CRON=${OUTBOX_CLEANUP_CRON:-0 0 * * * *}
       - TEMPO_HOST=tempo
-    networks:
-      - cinema-net
 
   # 9. Payment Service
   payment-service:
+    <<: *common-env
     build: ./payment-service
     container_name: payment-service
     ports:
@@ -193,22 +206,23 @@ services:
         condition: service_started
     environment:
       - DB_HOST=postgres-db
+      - DB_PORT=5432
       - DB_USERNAME=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
+      - OUTBOX_CLEANUP_CRON=${OUTBOX_CLEANUP_CRON:-0 0 * * * *}
       - TEMPO_HOST=tempo
-    networks:
-      - cinema-net
 
   # 10. API Gateway
   gateway-service:
+    <<: *common-env
     build: ./gateway-service
     container_name: gateway-service
     ports:
-      - "8088:8088"
+      - "${GATEWAY_PORT:-8088}:8088"
     depends_on:
       discovery-server:
         condition: service_started
@@ -216,17 +230,16 @@ services:
         condition: service_started
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+      - KEYCLOAK_HOST=keycloak-cinema
       - TEMPO_HOST=tempo
-      # - KEYCLOAK_ISSUER_URI=http://keycloak-cinema:8080/realms/teacinema
-    networks:
-      - cinema-net
 
   # 11. Prometheus (Собирает метрики с наших сервисов)
   prometheus:
+    <<: *common-env
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
@@ -234,24 +247,24 @@ services:
 
   # 12. Grafana Tempo (Собирает трейсы по протоколу OTLP)
   tempo:
+    <<: *common-env
     image: grafana/tempo:latest
     container_name: tempo
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200:3200"   # UI Tempo
+      - "${TEMPO_PORT:-3200}:3200"   # UI Tempo
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP (Сюда бьют наши Spring Boot сервисы)
-    networks:
-      - cinema-net
 
   # 13. Grafana (Единый дашборд для всего)
   grafana:
+    <<: *common-env
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -267,22 +280,20 @@ services:
 
   # 14. Loki - хранилище логов
   loki:
+    <<: *common-env
     image: grafana/loki:latest
     container_name: loki
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3100:3100"
-    networks:
-      - cinema-net
+      - "${LOKI_PORT:-3100}:3100"
 
   # 15. Promtail - сборщик логов из контейнеров Docker
   promtail:
+    <<: *common-env
     image: grafana/promtail:latest
     container_name: promtail
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Для чтения метаданных Docker
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro # Для чтения самих логов
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./promtail-config.yaml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
-    networks:
-      - cinema-net

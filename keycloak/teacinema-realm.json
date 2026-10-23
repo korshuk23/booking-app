@@ -3,6 +3,9 @@
   "enabled": true,
   "registrationAllowed": true,
   "resetPasswordAllowed": true,
+  "defaultRoles": [
+    "USER"
+  ],
   "roles": {
     "realm": [
       {
@@ -20,7 +23,7 @@
       "clientId": "teacinema-backend-client",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "cinema-secret-key-12345",
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
       "directAccessGrantsEnabled": true,
       "standardFlowEnabled": true,
       "serviceAccountsEnabled": true,
@@ -29,25 +32,6 @@
     }
   ],
   "users": [
-    {
-      "username": "user@cinema.dev",
-      "enabled": true,
-      "email": "user@cinema.dev",
-      "firstName": "Cinema",
-      "lastName": "User",
-      "emailVerified": true,
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "default-secure-password-123",
-          "temporary": false
-        }
-      ],
-      "realmRoles": [
-        "USER"
-      ]
-    },
     {
       "username": "admin@cinema.dev",
       "enabled": true,

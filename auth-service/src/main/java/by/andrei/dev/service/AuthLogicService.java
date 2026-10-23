@@ -9,7 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Locale;
 import java.util.Random;
 
 @Service
@@ -25,8 +28,12 @@ public class AuthLogicService {
     @Value("${auth.otp.length:6}")
     private int otpLength;
 
+    @Value("${auth.otp.log-code:false}")
+    private boolean logOtp;
+
     @Transactional
-    public void sendOtp(String identifier) {
+    public void sendOtp(String rawIdentifier) {
+        String identifier = normalize(rawIdentifier);
         int bound = (int) Math.pow(10, otpLength);
         String format = "%0" + otpLength + "d";
         String code = String.format(format, SECURE_RANDOM.nextInt(bound));
@@ -38,14 +45,22 @@ public class AuthLogicService {
         otpRepository.save(otp);
         //TODO логика отправки отп емайл/смс/телега
 
-        log.info("OTP for {}: {}", identifier, code);
+        if (logOtp) {
+            log.warn("[DEV MODE ONLY] OTP for {}: {}", identifier, code);
+        }else{
+            log.info("OTP successfully generated and dispatched for: {}", identifier);
+        }
     }
 
-    public String verifyOtpAndGenerateToken(String identifier, String code) {
+    public String verifyOtpAndGenerateToken(String rawIdentifier, String code) {
+        String identifier = normalize(rawIdentifier);
         OtpCode savedOtp = otpRepository.findById(identifier)
                 .orElseThrow(() -> new RuntimeException("OTP code not found or expired"));
 
-        if (!savedOtp.getCode().equals(code)) {
+        boolean matches = code != null && MessageDigest.isEqual(
+                savedOtp.getCode().getBytes(StandardCharsets.UTF_8),
+                code.getBytes(StandardCharsets.UTF_8));
+        if (!matches) {
             throw new RuntimeException("Invalid OTP code");
         }
 
@@ -57,9 +72,13 @@ public class AuthLogicService {
                         .role("USER")
                         .build()));
 
-        // TODO: Если юзера нет в самом Keycloak, его нужно там создать через Keycloak Admin REST Client.
-        // Пока предполагаем, что юзер там есть (или создается асинхронно).
+        String hmacPassword = keycloakIntegrationService.generateHmacPassword(identifier);
+        keycloakIntegrationService.ensureUserExists(identifier,hmacPassword);
 
-        return keycloakIntegrationService.getTokenForUser(identifier);
+        return keycloakIntegrationService.getTokenForUser(identifier, hmacPassword);
+    }
+
+    private String normalize(String identifier) {
+        return identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
     }
 }
