@@ -1,11 +1,17 @@
 package by.andrei.dev.bookingservice.service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,30 +19,55 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Slf4j
 public class BookingNotificationService {
-    private final Map<UUID, SseEmitter> emitters = new ConcurrentHashMap<>();
 
     @Value("${booking.sse.timeout-ms:60000}")
     private long sseTimeoutMs;
 
+    @Value("${booking.sse.cache-ttl-minutes:10}")
+    private long cacheTtlMinutes;
+
+    @Value("${booking.sse.max-emitters:50000}")
+    private long maxEmitters;
+
+    private Cache<UUID, SseEmitter> emitterCache;
+
+    @PostConstruct
+    void initCache() {
+        this.emitterCache = Caffeine.newBuilder()
+                .maximumSize(maxEmitters)
+                .expireAfterWrite(Duration.ofMinutes(cacheTtlMinutes))
+                .removalListener((UUID key, SseEmitter emitter, RemovalCause cause) -> {
+                    if (cause.wasEvicted() && emitter != null) {
+                        log.warn("SseEmitter for booking {} forcibly evicted from cache! Reason: {}", key, cause);
+                        try {
+                            emitter.complete();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                })
+                .build();
+    }
+
     public SseEmitter subscribe(UUID bookingId) {
         SseEmitter emitter = new SseEmitter(sseTimeoutMs);
 
-        emitters.put(bookingId, emitter);
-
         emitter.onCompletion(() -> {
-            log.info("SSE connection completed for booking: {}", bookingId);
-            emitters.remove(bookingId);
+            log.debug("SSE connection gracefully completed for booking: {}", bookingId);
+            emitterCache.invalidate(bookingId);
         });
 
         emitter.onTimeout(() -> {
             log.warn("SSE connection timed out for booking: {}", bookingId);
-            emitters.remove(bookingId);
+            emitter.complete();
+            emitterCache.invalidate(bookingId);
         });
 
         emitter.onError(e -> {
-            log.error("SSE connection error for booking {}: {}", bookingId, e.getMessage());
-            emitters.remove(bookingId);
+            log.debug("SSE network connection terminated/error for booking {}: {}", bookingId, e.getMessage());
+            emitterCache.invalidate(bookingId);
         });
+
+        emitterCache.put(bookingId, emitter);
 
         try {
             emitter.send(SseEmitter.event()
@@ -48,14 +79,14 @@ public class BookingNotificationService {
                     )));
         } catch (IOException e) {
             log.error("Failed to send INIT SSE event for booking {}", bookingId, e);
-            emitters.remove(bookingId);
+            emitterCache.invalidate(bookingId);
         }
 
         return emitter;
     }
 
     public void sendBookingUpdate(UUID bookingId, String status, String message) {
-        SseEmitter emitter = emitters.get(bookingId);
+        SseEmitter emitter = emitterCache.getIfPresent(bookingId);
         if (emitter == null) {
             log.debug("No active SSE subscriber for booking {}", bookingId);
             return;
@@ -73,8 +104,31 @@ public class BookingNotificationService {
 
             emitter.complete();
         } catch (Exception e) {
-            log.error("Failed to push SSE to client for booking {}", bookingId, e);
-            emitters.remove(bookingId);
+            log.warn("Failed to push update to booking subscriber {}: {}", bookingId, e.getMessage());
+        } finally {
+            emitterCache.invalidate(bookingId);
         }
+    }
+
+    @Scheduled(fixedRateString = "${booking.sse.heartbeat-rate-ms:15000}")
+    public void sendHeartbeat() {
+        if (emitterCache == null || emitterCache.estimatedSize() == 0) {
+            return;
+        }
+
+        log.trace("Broadcasting SSE heartbeat to {} active client(s)", emitterCache.estimatedSize());
+
+        emitterCache.asMap().forEach((bookingId, emitter) -> {
+            try {
+                emitter.send(SseEmitter.event().comment("keep-alive-ping"));
+            } catch (Exception ex) {
+                log.debug("Heartbeat detected broken client pipe for booking {}. Evicting.", bookingId);
+                emitterCache.invalidate(bookingId);
+            }
+        });
+    }
+
+    public long getActiveConnectionsCount() {
+        return emitterCache != null ? emitterCache.estimatedSize() : 0;
     }
 }

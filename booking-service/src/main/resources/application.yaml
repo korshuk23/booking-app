@@ -40,6 +40,9 @@ eureka:
 booking:
   sse:
     timeout-ms: ${BOOKING_SSE_TIMEOUT_MS:60000}
+    cache-ttl-minutes: 10
+    max-emitters: 50000
+    heartbeat-rate-ms: 15000
 
 outbox:
   retention:
