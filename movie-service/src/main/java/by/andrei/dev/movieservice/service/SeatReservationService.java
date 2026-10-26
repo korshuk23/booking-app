@@ -5,6 +5,7 @@ import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
 import by.andrei.dev.movieservice.entity.ProcessedBooking;
 import by.andrei.dev.movieservice.entity.Seat;
+import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
@@ -26,6 +27,7 @@ public class SeatReservationService {
     private final ProcessedBookingRepository processedBookingRepository;
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
+    private final MovieSessionRepository movieSessionRepository;
 
     @Transactional
     public void reserveSeatAndSaveOutbox(BookingEvent event) {
@@ -34,6 +36,11 @@ public class SeatReservationService {
 
         if (seat.getStatus() != Seat.SeatStatus.FREE) {
             throw new IllegalStateException("Seat is already taken");
+        }
+
+        int updatedRows = movieSessionRepository.decrementAvailableSeats(event.getSessionId());
+        if (updatedRows == 0) {
+            throw new IllegalStateException("No available seats left for this session");
         }
 
         seat.setStatus(Seat.SeatStatus.RESERVED);

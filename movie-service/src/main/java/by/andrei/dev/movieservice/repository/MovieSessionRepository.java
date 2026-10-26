@@ -14,13 +14,13 @@ import java.util.UUID;
 public interface MovieSessionRepository extends JpaRepository<MovieSession, UUID> {
     List<MovieSession> findAllByMovieId(UUID movieId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats - 1" +
             "WHERE s.id = :sessionId AND s.availableSeats > 0")
-    int reserveSeat(@Param("sessionid") UUID sessionId);
+    int decrementAvailableSeats(@Param("sessionId") UUID sessionId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats + 1" +
             "WHERE s.id = :sessionId AND s.availableSeats <s.totalSeats")
-    int releaseSeat(@Param("sesionId") UUID sessionId);
+    int incrementAvailableSeats(@Param("sessionId") UUID sessionId);
 }
