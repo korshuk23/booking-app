@@ -5,7 +5,7 @@ import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
-import by.andrei.dev.movieservice.service.SeatReservationService;
+import by.andrei.dev.movieservice.service.SeatReservationCoordinator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class BookingConsumer {
     private final ProcessedBookingRepository processedBookingRepository;
-    private final SeatReservationService seatReservationService;
+    private final SeatReservationCoordinator seatReservationCoordinator;
     private final SeatRepository seatRepository;
 
     @KafkaListener(topics = "booking-events", groupId = "movie-group-v2")
@@ -29,13 +29,7 @@ public class BookingConsumer {
             return;
         }
 
-        try {
-            seatReservationService.reserveSeatAndSaveOutbox(event);
-            log.info("Seat {} successfully RESERVED for booking {}", event.getSeatId(), event.getBookingId());
-        } catch (Exception e) { // Перехватываем ВСЕ ошибки (включая если кресло занято или не найдено)
-            log.warn("Failed to reserve seat for booking {}: {}", event.getBookingId(), e.getMessage());
-            seatReservationService.saveRejectionOutbox(event, e.getMessage());
-        }
+        seatReservationCoordinator.processReservationWithLock(event);
     }
 
     /**
