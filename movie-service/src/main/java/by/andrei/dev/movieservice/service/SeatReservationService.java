@@ -38,7 +38,8 @@ public class SeatReservationService {
 
         seat.setStatus(Seat.SeatStatus.RESERVED);
         seat.setReservedAt(LocalDateTime.now());
-        seatRepository.saveAndFlush(seat); // Вызовет OptimisticLock при гонке
+        seat.setBookingId(event.getBookingId());
+        seatRepository.saveAndFlush(seat);
 
         processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
 

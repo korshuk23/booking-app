@@ -11,5 +11,7 @@ databaseChangeLog:
       file: db/changelog/changeset/v5-create-outbox-table.sql
   - include:
       file: db/changelog/changeset/v6-seed-sessions-and-seats.sql
+  - include:
+      file: db/changelog/changeset/v7-add-booking-id-to-seats.sql
 
 

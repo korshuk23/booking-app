@@ -25,8 +25,13 @@ public class MovieStatusConsumer {
             booking.setStatus(event.getStatus());
             bookingRepository.save(booking);
             log.info("Booking {} updated to {}", event.getBookingId(), event.getStatus());
-            if ("REJECTED".equals(event.getStatus())) {
-                notificationService.sendBookingUpdate(booking.getId(), "REJECTED", event.getMessage());
+
+            if ("REJECTED".equals(event.getStatus()) || "CANCELLED".equals(event.getStatus())) {
+                notificationService.sendBookingUpdate(
+                        booking.getId(),
+                        event.getStatus(),
+                        event.getMessage() != null ? event.getMessage() : "Booking cancelled"
+                );
             }
         });
     }
