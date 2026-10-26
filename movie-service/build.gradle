@@ -49,6 +49,7 @@ dependencies {
 
     // 12. Redisson
     implementation 'org.redisson:redisson:3.45.0'
+
 }
 
 tasks.named('test') {

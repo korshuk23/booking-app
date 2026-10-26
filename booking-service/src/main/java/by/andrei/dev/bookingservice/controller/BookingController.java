@@ -3,6 +3,7 @@ package by.andrei.dev.bookingservice.controller;
 import by.andrei.dev.bookingservice.entity.Booking;
 import by.andrei.dev.bookingservice.service.BookingNotificationService;
 import by.andrei.dev.bookingservice.service.BookingService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -23,17 +24,18 @@ public class BookingController {
     private final BookingNotificationService notificationService;
 
     @PostMapping
-    public ResponseEntity<Booking> createBooking(@RequestHeader("X-User-Id") String userId,
-                                                 @RequestParam UUID movieId,
-                                                 @RequestParam UUID sessionId,
-                                                 @RequestParam UUID seatId) {
-        log.info("User {} requested booking for movie {}, seat {}", userId, movieId, seatId);
+    public ResponseEntity<Booking> createBooking(
+            @RequestHeader("X-User-Id") String userId,
+            @Valid @RequestBody by.andrei.dev.bookingservice.dto.CreateBookingRequest request) {
+
+        log.info("User {} requested booking: movie={}, session={}, seat={}",
+                userId, request.getMovieId(), request.getSessionId(), request.getSeatId());
 
         Booking booking = bookingService.createBooking(
                 UUID.fromString(userId),
-                movieId,
-                sessionId,
-                seatId
+                request.getMovieId(),
+                request.getSessionId(),
+                request.getSeatId()
         );
         return new ResponseEntity<>(booking, HttpStatus.CREATED);
     }

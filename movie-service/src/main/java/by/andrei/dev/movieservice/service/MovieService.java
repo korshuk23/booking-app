@@ -20,12 +20,11 @@ public class MovieService {
 
     private final MovieRepository movieRepository;
 
-    // Чтение: используем readOnly транзакцию для оптимизации (админский лайфхак)
-    @Cacheable(value = "movies", key = "'all'")
+    @Cacheable(value = "movies", key = "'page-' + #pageable.pageNumber + '-size-' + #pageable.pageSize")
     @Transactional(readOnly = true)
-    public List<Movie> findAllAvailable() {
-        log.info("CACHE MISS: Fetching all available movies from Postgres DB");
-        return movieRepository.findAllByIsAvailableTrue();
+    public org.springframework.data.domain.Page<Movie> findAllAvailable(org.springframework.data.domain.Pageable pageable) {
+        log.info("CACHE MISS: Fetching page {} of size {} from Postgres DB", pageable.getPageNumber(), pageable.getPageSize());
+        return movieRepository.findAllByIsAvailableTrue(pageable);
     }
 
     @Cacheable(value = "movie", key = "#id")
