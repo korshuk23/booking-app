@@ -20,24 +20,26 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerWebExchange sanitizedExchange = exchange.mutate()
+                .request(r -> r.headers(headers -> {
+                    headers.remove("X-User-Id");
+                    headers.remove("X-User-Roles");
+                    headers.remove("X-User-Email");
+                }))
+                .build();
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 .filter(auth -> auth instanceof JwtAuthenticationToken)
                 .cast(JwtAuthenticationToken.class)
                 .flatMap(jwtAuth -> {
-                    // 1. Извлекаем User ID (поле sub)
                     String userId = jwtAuth.getToken().getSubject();
 
-                    // 2. Извлекаем роли пользователя
                     String roles = jwtAuth.getAuthorities().stream()
                             .map(GrantedAuthority::getAuthority)
                             .collect(Collectors.joining(","));
-                    //Email пользователя(если есть)
+
                     String email = jwtAuth.getToken().getClaimAsString("email");
 
-                    log.debug("Gateway propagating user info: userId={}, roles={}, email={}", userId, roles, email);
-
-                    // 3. Модифицируем текущий HTTP-запрос, добавляя наши кастомные заголовки
                     ServerWebExchange mutatedExchange = exchange.mutate()
                             .request(builder -> {
                                 builder.header("X-User-Id", userId);
@@ -55,6 +57,6 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return 0;
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 }
