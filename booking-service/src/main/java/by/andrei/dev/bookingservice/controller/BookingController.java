@@ -1,5 +1,6 @@
 package by.andrei.dev.bookingservice.controller;
 
+import by.andrei.dev.bookingservice.dto.CreateBookingRequest;
 import by.andrei.dev.bookingservice.entity.Booking;
 import by.andrei.dev.bookingservice.service.BookingNotificationService;
 import by.andrei.dev.bookingservice.service.BookingService;
@@ -26,7 +27,7 @@ public class BookingController {
     @PostMapping
     public ResponseEntity<Booking> createBooking(
             @RequestHeader("X-User-Id") String userId,
-            @Valid @RequestBody by.andrei.dev.bookingservice.dto.CreateBookingRequest request) {
+            @Valid @RequestBody CreateBookingRequest request) {
 
         log.info("User {} requested booking: movie={}, session={}, seat={}",
                 userId, request.getMovieId(), request.getSessionId(), request.getSeatId());
