@@ -3,6 +3,7 @@ package by.andrei.dev.movieservice.service;
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
 import by.andrei.dev.movieservice.entity.Seat;
+import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class SeatReleaseJob {
 
     private final SeatRepository seatRepository;
+    private final MovieSessionRepository movieSessionRepository;
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
 
@@ -38,23 +40,27 @@ public class SeatReleaseJob {
                 Seat.SeatStatus.RESERVED, expirationTime
         );
 
-        if (!expiredSeats.isEmpty()) {
-            log.info("Found {} expired seat reservations. Releasing them...", expiredSeats.size());
-
-            for (Seat seat : expiredSeats) {
-                UUID expiredBookingId = seat.getBookingId();
-
-                seat.setStatus(Seat.SeatStatus.FREE);
-                seat.setReservedAt(null);
-                seat.setBookingId(null);
-
-                if (expiredBookingId != null) {
-                    emitCancellationOutboxEvent(expiredBookingId, seat);
-                }
-            }
-
-            seatRepository.saveAll(expiredSeats);
+        if (expiredSeats.isEmpty()) {
+            return;
         }
+
+        log.info("Found {} expired seat reservations. Releasing...", expiredSeats.size());
+
+        for (Seat seat : expiredSeats) {
+            UUID expiredBookingId = seat.getBookingId();
+
+            seat.setStatus(Seat.SeatStatus.FREE);
+            seat.setReservedAt(null);
+            seat.setBookingId(null);
+
+            movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
+
+            if (expiredBookingId != null) {
+                emitCancellationOutboxEvent(expiredBookingId, seat);
+            }
+        }
+
+        seatRepository.saveAll(expiredSeats);
     }
 
     private void emitCancellationOutboxEvent(UUID bookingId, Seat seat) {

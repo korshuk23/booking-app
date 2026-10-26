@@ -3,6 +3,7 @@ package by.andrei.dev.movieservice.consumer;
 import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.entity.Seat;
+import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
 import by.andrei.dev.movieservice.service.SeatReservationCoordinator;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @RequiredArgsConstructor
 public class BookingConsumer {
+    private final MovieSessionRepository movieSessionRepository;
     private final ProcessedBookingRepository processedBookingRepository;
     private final SeatReservationCoordinator seatReservationCoordinator;
     private final SeatRepository seatRepository;
@@ -42,7 +44,11 @@ public class BookingConsumer {
             log.warn("Payment failed for booking {}. Releasing seat back for session {}", event.getBookingId(), event.getSeatId());
             seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
                 seat.setStatus(Seat.SeatStatus.FREE);
+                seat.setBookingId(null);
+                seat.setReservedAt(null);
                 seatRepository.save(seat);
+
+                movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
             });
         } else if ("SUCCESS".equals(event.getStatus()) && event.getSeatId() != null) {
             seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
