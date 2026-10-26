@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -22,9 +24,9 @@ public class OutboxPublisher {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private static final String TOPIC = "booking-status-events";
+    private static final int KAFKA_ACK_TIMEOUT_SECONDS = 5;
 
     @Scheduled(fixedDelay = 1000)
-    @Transactional
     public void publishPendingEvents() {
         List<OutboxEvent> pendingEvents = outboxRepository.findPendingEventsForProcessing();
         if (pendingEvents.isEmpty()) {
@@ -36,14 +38,23 @@ public class OutboxPublisher {
         for (OutboxEvent event : pendingEvents) {
             try {
                 BookingStatusEvent statusEvent = objectMapper.readValue(event.getPayload(), BookingStatusEvent.class);
-                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), statusEvent);
-                event.setStatus("SENT");
-                event.setSentAt(LocalDateTime.now());
-                outboxRepository.save(event);
+
+                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), statusEvent)
+                        .get(KAFKA_ACK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+                markEventAsSent(event.getId());
                 log.info("Successfully published outbox event {} to Kafka topic {}", event.getId(), TOPIC);
             } catch (Exception e) {
                 log.error("Failed to publish outbox event {}. Will retry on next tick.", event.getId(), e);
             }
         }
+    }
+
+    private void markEventAsSent(UUID eventId) {
+        outboxRepository.findById(eventId).ifPresent(ev -> {
+            ev.setStatus("SENT");
+            ev.setSentAt(LocalDateTime.now());
+            outboxRepository.save(ev);
+        });
     }
 }
