@@ -26,7 +26,6 @@ public class BookingService {
     private final MovieClient movieClient;
     private final ObjectMapper objectMapper;
 
-    @Transactional
     public Booking createBooking(UUID userId, UUID movieId, UUID sessionId, UUID seatId) {
         MovieResponse movieInfo = movieClient.getMovieInfo(movieId);
 
@@ -34,38 +33,42 @@ public class BookingService {
             throw new IllegalStateException("Movie not available");
         }
 
+        return saveBookingAndOutbox(userId, movieId, sessionId, seatId, BigDecimal.valueOf(movieInfo.getPrice()));
+    }
+
+    @Transactional
+    public Booking saveBookingAndOutbox(UUID userId, UUID movieId, UUID sessionId, UUID seatId, BigDecimal price) {
         Booking booking = Booking.builder()
                 .userId(userId)
                 .movieId(movieId)
                 .sessionId(sessionId)
                 .seatId(seatId)
-                .price(BigDecimal.valueOf(movieInfo.getPrice()))
+                .price(price)
                 .status("PENDING")
                 .build();
         Booking saved = bookingRepository.save(booking);
 
         BookingEvent event = BookingEvent.builder()
-                .bookingId(booking.getId())
-                .movieId(booking.getMovieId())
+                .bookingId(saved.getId())
+                .movieId(saved.getMovieId())
                 .sessionId(saved.getSessionId())
                 .seatId(saved.getSeatId())
-                .userId(booking.getUserId())
-                .status(booking.getStatus())
-                .price(booking.getPrice())
+                .userId(saved.getUserId())
+                .status(saved.getStatus())
+                .price(saved.getPrice())
                 .build();
 
         try {
             OutboxEvent outboxEvent = OutboxEvent.builder()
                     .aggregateType("BOOKING")
-                    .aggregateId((saved.getId()))
+                    .aggregateId(saved.getId())
                     .eventType("BOOKING_CREATED")
                     .payload(objectMapper.writeValueAsString(event))
                     .build();
             outboxRepository.save(outboxEvent);
             log.info("Booking created and saved to Outbox with ID {}", saved.getId());
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize booking event for booking {}", saved.getId(), e);
-            throw new RuntimeException("Error processing booking event", e);
+            throw new IllegalStateException("Error serializing booking event", e);
         }
 
         return saved;
