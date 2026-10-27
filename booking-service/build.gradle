@@ -59,6 +59,9 @@ dependencies {
     // 16. Caffeine
     implementation 'com.github.ben-manes.caffeine:caffeine'
 
+    // 17. Redis pub/sub
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
 
 }
 
