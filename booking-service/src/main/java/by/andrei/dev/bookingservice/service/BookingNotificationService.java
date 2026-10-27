@@ -2,6 +2,8 @@ package by.andrei.dev.bookingservice.service;
 
 import by.andrei.dev.bookingservice.config.RedisPubSubConfig;
 import by.andrei.dev.bookingservice.dto.BookingNotificationDto;
+import by.andrei.dev.bookingservice.entity.Booking;
+import by.andrei.dev.bookingservice.repository.BookingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -11,8 +13,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -26,6 +32,7 @@ import java.util.UUID;
 public class BookingNotificationService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final BookingRepository bookingRepository;
 
     @Value("${booking.sse.timeout-ms:60000}")
     private long sseTimeoutMs;
@@ -55,7 +62,15 @@ public class BookingNotificationService {
                 .build();
     }
 
-    public SseEmitter subscribe(UUID bookingId) {
+    public SseEmitter subscribe(UUID bookingId, UUID requestingUserId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
+
+        if (!booking.getUserId().equals(requestingUserId)) {
+            log.warn("Access denied: User {} tried to subscribe to booking {}", requestingUserId, bookingId);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied: You don't own this booking");
+        }
+
         SseEmitter emitter = new SseEmitter(sseTimeoutMs);
 
         emitter.onCompletion(() -> {
@@ -92,13 +107,20 @@ public class BookingNotificationService {
         return emitter;
     }
 
-    public void sendBookingUpdate(UUID bookingId, String status, String message) {
-        SseEmitter emitter = emitterCache.getIfPresent(bookingId);
-        if (emitter == null) {
-            log.debug("No active SSE subscriber for booking {}", bookingId);
-            return;
+    public void sendBookingUpdateAfterCommit(UUID bookingId, String status, String message) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    broadcastToRedis(bookingId, status, message);
+                }
+            });
+        } else {
+            broadcastToRedis(bookingId, status, message);
         }
+    }
 
+    private void broadcastToRedis(UUID bookingId, String status, String message) {
         try {
             BookingNotificationDto payload = BookingNotificationDto.builder()
                     .bookingId(bookingId)
@@ -107,10 +129,9 @@ public class BookingNotificationService {
                     .build();
 
             String json = objectMapper.writeValueAsString(payload);
-            log.info("Broadcasting booking update to Redis Pub/Sub for booking {}", bookingId);
             redisTemplate.convertAndSend(RedisPubSubConfig.BOOKING_STATUS_TOPIC, json);
         } catch (Exception e) {
-            log.error("Failed to broadcast SSE update via Redis for booking: {}", bookingId, e);
+            log.error("Failed to broadcast SSE update to Redis for booking: {}", bookingId, e);
         }
     }
 
@@ -128,8 +149,11 @@ public class BookingNotificationService {
                                 "status", dto.getStatus(),
                                 "message", dto.getMessage()
                         )));
-                emitter.complete();
-                emitterCache.invalidate(dto.getBookingId());
+                if ("CONFIRMED".equals(dto.getStatus()) || "CANCELLED".equals(dto.getStatus()) ||
+                        "REJECTED".equals(dto.getStatus())) {
+                    emitter.complete();
+                    emitterCache.invalidate(dto.getBookingId());
+                }
             }
         } catch (Exception e) {
             log.error("Error processing cluster notification from Redis", e);

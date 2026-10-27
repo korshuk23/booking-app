@@ -57,12 +57,14 @@ class BookingSagaConsumersIntegrationTest {
 
     private UUID testBookingId;
 
+    private UUID testUserId;
+
     @BeforeEach
     void setUp() {
         bookingRepository.deleteAll();
 
         Booking booking = bookingRepository.save(Booking.builder()
-                .userId(UUID.randomUUID())
+                .userId(testUserId)
                 .movieId(UUID.randomUUID())
                 .sessionId(UUID.randomUUID())
                 .seatId(UUID.randomUUID())
@@ -122,7 +124,7 @@ class BookingSagaConsumersIntegrationTest {
     @Test
     @DisplayName("Сценарий 4: SSE Подписка — клиент подписывается и получает уведомление без ошибок")
     void shouldNotifySseSubscriberOnPaymentSuccess() {
-        SseEmitter emitter = notificationService.subscribe(testBookingId);
+        SseEmitter emitter = notificationService.subscribe(testBookingId, testUserId);
         assertThat(emitter).isNotNull();
 
         PaymentEvent successEvent = PaymentEvent.builder()
@@ -160,5 +162,16 @@ class BookingSagaConsumersIntegrationTest {
 
         Booking finalBooking = bookingRepository.findById(testBookingId).orElseThrow();
         assertThat(finalBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("Сценарий 6 (Security): Попытка подписаться на чужой заказ вызывает ошибку 403 Forbidden")
+    void shouldDenySseSubscriptionForWrongUser() {
+        UUID hackerId = UUID.randomUUID();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        notificationService.subscribe(testBookingId, hackerId)
+                ).isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("403 FORBIDDEN");
     }
 }

@@ -32,7 +32,7 @@ public class MovieStatusConsumer {
                 log.info("Booking {} transitioned to {}", booking.getId(), booking.getStatus());
 
                 if (targetStatus == Booking.BookingStatus.REJECTED || targetStatus == Booking.BookingStatus.CANCELLED) {
-                    notificationService.sendBookingUpdate(
+                    notificationService.sendBookingUpdateAfterCommit(
                             booking.getId(),
                             targetStatus.name(),
                             event.getMessage() != null ? event.getMessage() : "Booking rejected by cinema"

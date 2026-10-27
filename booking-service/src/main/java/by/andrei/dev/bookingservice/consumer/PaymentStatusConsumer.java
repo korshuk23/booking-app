@@ -34,7 +34,7 @@ public class PaymentStatusConsumer {
 
                 log.info("Booking {} successfully transitioned to {}", booking.getId(), booking.getStatus());
 
-                notificationService.sendBookingUpdate(
+                notificationService.sendBookingUpdateAfterCommit(
                         booking.getId(),
                         booking.getStatus().name(),
                         "SUCCESS".equals(event.getStatus()) ? "Payment confirmed! Ticket issued." : event.getFailureReason()

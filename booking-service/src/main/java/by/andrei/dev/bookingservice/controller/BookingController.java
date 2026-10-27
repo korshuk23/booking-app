@@ -42,9 +42,10 @@ public class BookingController {
     }
 
     @GetMapping(value = "/{id}/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribeToBookingStatus(@PathVariable UUID id) {
-        log.info("Client subscribed to SSE updates for booking: {}", id);
-        return notificationService.subscribe(id);
+    public SseEmitter subscribeToBookingStatus(@PathVariable UUID id,
+                                               @RequestHeader("X-User-Id") String userId) {
+        log.info("User {} subscribed to SSE updates for booking: {}", userId, id);
+        return notificationService.subscribe(id, UUID.fromString(userId));
     }
 
     @GetMapping("/my")
