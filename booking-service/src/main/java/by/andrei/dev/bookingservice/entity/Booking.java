@@ -2,6 +2,7 @@ package by.andrei.dev.bookingservice.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -32,11 +33,42 @@ public class Booking {
     @Column(name = "seat_id", nullable = false)
     private UUID seatId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private BookingStatus status;
 
     private BigDecimal price;
 
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public enum BookingStatus {
+        PENDING,
+        SEATS_RESERVED,
+        CONFIRMED,
+        CANCELLED,
+        REJECTED;
+
+        public boolean canTransitionTo(BookingStatus next) {
+            return switch (this) {
+                case PENDING -> next == SEATS_RESERVED || next == REJECTED || next == CANCELLED;
+                case SEATS_RESERVED -> next == CONFIRMED || next == CANCELLED;
+                case CONFIRMED, CANCELLED, REJECTED -> false;
+            };
+        }
+    }
+
+    public void transitionTo(BookingStatus newStatus) {
+        if (!this.status.canTransitionTo(newStatus)) {
+            throw new IllegalStateException(
+                    String.format("Недопустимый переход статуса заказа %s: из [%s] в [%s]",
+                            this.id, this.status, newStatus)
+            );
+        }
+        this.status = newStatus;
+    }
 }

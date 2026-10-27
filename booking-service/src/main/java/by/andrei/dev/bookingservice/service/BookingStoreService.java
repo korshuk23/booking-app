@@ -32,7 +32,7 @@ public class BookingStoreService {
                 .sessionId(sessionId)
                 .seatId(seatId)
                 .price(price)
-                .status("PENDING")
+                .status(Booking.BookingStatus.PENDING)
                 .build();
 
         Booking saved = bookingRepository.save(booking);
@@ -43,7 +43,7 @@ public class BookingStoreService {
                 .sessionId(saved.getSessionId())
                 .seatId(saved.getSeatId())
                 .userId(saved.getUserId())
-                .status(saved.getStatus())
+                .status(saved.getStatus().name())
                 .price(saved.getPrice())
                 .build();
 

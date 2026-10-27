@@ -1,5 +1,6 @@
 package by.andrei.dev.bookingservice.consumer;
 
+import by.andrei.dev.bookingservice.entity.Booking;
 import by.andrei.dev.bookingservice.repository.BookingRepository;
 import by.andrei.dev.bookingservice.service.BookingNotificationService;
 import by.andrei.dev.core.dto.BookingStatusEvent;
@@ -19,20 +20,29 @@ public class MovieStatusConsumer {
     @KafkaListener(topics = "booking-status-events", groupId = "booking-group")
     @Transactional
     public void handleStatusUpdate(BookingStatusEvent event) {
-        log.info("==> Received status update for booking {}: {}", event.getBookingId(), event.getStatus());
+        log.info("Received movie status update for booking {}: {}", event.getBookingId(), event.getStatus());
 
-        bookingRepository.findById(event.getBookingId()).ifPresent(booking -> {
-            booking.setStatus(event.getStatus());
-            bookingRepository.save(booking);
-            log.info("Booking {} updated to {}", event.getBookingId(), event.getStatus());
+        bookingRepository.findById(event.getBookingId()).ifPresentOrElse(booking -> {
+            try {
+                Booking.BookingStatus targetStatus = Booking.BookingStatus.valueOf(event.getStatus());
 
-            if ("REJECTED".equals(event.getStatus()) || "CANCELLED".equals(event.getStatus())) {
-                notificationService.sendBookingUpdate(
-                        booking.getId(),
-                        event.getStatus(),
-                        event.getMessage() != null ? event.getMessage() : "Booking cancelled"
-                );
+                booking.transitionTo(targetStatus);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} transitioned to {}", booking.getId(), booking.getStatus());
+
+                if (targetStatus == Booking.BookingStatus.REJECTED || targetStatus == Booking.BookingStatus.CANCELLED) {
+                    notificationService.sendBookingUpdate(
+                            booking.getId(),
+                            targetStatus.name(),
+                            event.getMessage() != null ? event.getMessage() : "Booking rejected by cinema"
+                    );
+                }
+            } catch (IllegalArgumentException ex) {
+                log.error("Unknown booking status received from Kafka: {}", event.getStatus());
+            } catch (IllegalStateException ex) {
+                log.warn("Ignored conflicting movie status event for booking {}: {}", event.getBookingId(), ex.getMessage());
             }
-        });
+        }, () -> log.error("Booking not found for movie status event: {}", event.getBookingId()));
     }
 }
