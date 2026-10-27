@@ -55,7 +55,7 @@ public class Booking {
 
         public boolean canTransitionTo(BookingStatus next) {
             return switch (this) {
-                case PENDING -> next == SEATS_RESERVED || next == REJECTED || next == CANCELLED;
+                case PENDING -> next == SEATS_RESERVED || next == CONFIRMED || next == REJECTED || next == CANCELLED;
                 case SEATS_RESERVED -> next == CONFIRMED || next == CANCELLED;
                 case CONFIRMED, CANCELLED, REJECTED -> false;
             };
@@ -63,6 +63,14 @@ public class Booking {
     }
 
     public void transitionTo(BookingStatus newStatus) {
+        if (this.status == newStatus) {
+            return;
+        }
+
+        if (this.status == BookingStatus.CONFIRMED && newStatus == BookingStatus.SEATS_RESERVED) {
+            return;
+        }
+
         if (!this.status.canTransitionTo(newStatus)) {
             throw new IllegalStateException(
                     String.format("Недопустимый переход статуса заказа %s: из [%s] в [%s]",

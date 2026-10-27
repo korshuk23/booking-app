@@ -15,12 +15,12 @@ public interface MovieSessionRepository extends JpaRepository<MovieSession, UUID
     List<MovieSession> findAllByMovieId(UUID movieId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats - 1" +
+    @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats - 1 " +
             "WHERE s.id = :sessionId AND s.availableSeats > 0")
     int decrementAvailableSeats(@Param("sessionId") UUID sessionId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats + 1" +
+    @Query("UPDATE MovieSession  s SET s.availableSeats = s.availableSeats + 1 " +
             "WHERE s.id = :sessionId AND s.availableSeats <s.totalSeats")
     int incrementAvailableSeats(@Param("sessionId") UUID sessionId);
 }
