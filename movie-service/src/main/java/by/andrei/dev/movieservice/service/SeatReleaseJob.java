@@ -54,6 +54,7 @@ public class SeatReleaseJob {
             seat.setBookingId(null);
 
             movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
+            log.info("Restored 1 seat capacity for session {}", seat.getSessionId());
 
             if (expiredBookingId != null) {
                 emitCancellationOutboxEvent(expiredBookingId, seat);

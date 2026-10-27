@@ -34,14 +34,18 @@ public class BookingConsumer {
         seatReservationCoordinator.processReservationWithLock(event);
     }
 
-    /**
-     * Компенсирующая транзакция Саги: если оплата провалилась, возвращаем место!
-     */
     @KafkaListener(topics = "payment-events", groupId = "movie-compensation-group")
     @Transactional
     public void handlePaymentCompensation(PaymentEvent event) {
-        if ("FAILED".equals(event.getStatus()) && event.getSeatId() != null) {
-            log.warn("Payment failed for booking {}. Releasing seat back for session {}", event.getBookingId(), event.getSeatId());
+        if (event.getSeatId() == null) {
+            log.warn("Received payment event without seatId for booking: {}", event.getBookingId());
+            return;
+        }
+
+        if ("FAILED".equals(event.getStatus())) {
+            log.warn("Payment failed for booking {}. Releasing seat {} and restoring capacity",
+                    event.getBookingId(), event.getSeatId());
+
             seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
                 seat.setStatus(Seat.SeatStatus.FREE);
                 seat.setBookingId(null);
@@ -49,8 +53,11 @@ public class BookingConsumer {
                 seatRepository.save(seat);
 
                 movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
+                log.info("Capacity restored for session {} after payment failure", seat.getSessionId());
             });
-        } else if ("SUCCESS".equals(event.getStatus()) && event.getSeatId() != null) {
+        } else if ("SUCCESS".equals(event.getStatus())) {
+            log.info("Payment confirmed for booking {}. Finalizing seat {} to BOOKED",
+                    event.getBookingId(), event.getSeatId());
             seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
                 seat.setStatus(Seat.SeatStatus.BOOKED);
                 seatRepository.save(seat);

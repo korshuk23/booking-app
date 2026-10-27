@@ -17,8 +17,7 @@ public class SeatReservationCoordinator {
     private final SeatReservationService seatReservationService;
 
     private static final String LOCK_PREFIX = "lock:seat:";
-    private static final long WAIT_TIME_MS = 500;
-    private static final long LEASE_TIME_MS = 5000;
+    private static final long WAIT_TIME_MS = 1000;
 
     public void processReservationWithLock(BookingEvent event) {
         String lockKey = LOCK_PREFIX + event.getSeatId();
@@ -26,7 +25,7 @@ public class SeatReservationCoordinator {
 
         boolean isLocked = false;
         try {
-            isLocked = lock.tryLock(WAIT_TIME_MS, LEASE_TIME_MS, TimeUnit.MILLISECONDS);
+            isLocked = lock.tryLock(WAIT_TIME_MS, TimeUnit.MILLISECONDS);
 
             if (!isLocked) {
                 log.warn("Contention detected: Seat {} is currently locked by another request. Failing fast.", event.getSeatId());
