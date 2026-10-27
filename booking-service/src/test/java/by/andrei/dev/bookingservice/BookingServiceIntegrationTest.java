@@ -85,7 +85,7 @@ class BookingServiceIntegrationTest {
 
         // Then
         assertThat(createdBooking.getId()).isNotNull();
-        assertThat(createdBooking.getStatus()).isEqualTo("PENDING");
+        assertThat(createdBooking.getStatus()).isEqualTo(Booking.BookingStatus.PENDING);
 
         // Проверяем, что запись появилась в реальной PostgreSQL
         List<Booking> allBookings = bookingRepository.findAll();
@@ -95,7 +95,7 @@ class BookingServiceIntegrationTest {
         // Проверяем Transactional Outbox: событие создано и готово к отправке в Kafka
         List<OutboxEvent> outboxEvents = outboxRepository.findAll();
         assertThat(outboxEvents).hasSize(1);
-        assertThat(outboxEvents.get(0).getStatus()).isEqualTo("PENDING");
+        assertThat(outboxEvents.get(0).getStatus()).isEqualTo(Booking.BookingStatus.PENDING);
         assertThat(outboxEvents.get(0).getAggregateId()).isEqualTo(createdBooking.getId());
     }
 }

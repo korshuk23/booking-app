@@ -67,7 +67,7 @@ class BookingSagaConsumersIntegrationTest {
                 .sessionId(UUID.randomUUID())
                 .seatId(UUID.randomUUID())
                 .price(BigDecimal.valueOf(20.00))
-                .status("PENDING")
+                .status(Booking.BookingStatus.PENDING)
                 .build());
 
         testBookingId = booking.getId();
@@ -85,7 +85,7 @@ class BookingSagaConsumersIntegrationTest {
         paymentStatusConsumer.handlePaymentStatus(successEvent);
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
-        assertThat(updatedBooking.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(updatedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
     }
 
     @Test
@@ -101,7 +101,7 @@ class BookingSagaConsumersIntegrationTest {
         paymentStatusConsumer.handlePaymentStatus(failedEvent);
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
-        assertThat(updatedBooking.getStatus()).isEqualTo("CANCELLED");
+        assertThat(updatedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CANCELLED);
     }
 
     @Test
@@ -116,7 +116,7 @@ class BookingSagaConsumersIntegrationTest {
         movieStatusConsumer.handleStatusUpdate(rejectedEvent);
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
-        assertThat(updatedBooking.getStatus()).isEqualTo("REJECTED");
+        assertThat(updatedBooking.getStatus()).isEqualTo(Booking.BookingStatus.REJECTED);
     }
 
     @Test
@@ -134,6 +134,31 @@ class BookingSagaConsumersIntegrationTest {
                 .doesNotThrowAnyException();
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
-        assertThat(updatedBooking.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(updatedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("Сценарий 5 (Гонка Kafka): PAYMENT_SUCCESS пришел раньше SEATS_RESERVED — заказ не должен застрять")
+    void shouldConfirmBookingEvenIfPaymentArrivesBeforeSeatsReserved() {
+        PaymentEvent paymentSuccess = PaymentEvent.builder()
+                .bookingId(testBookingId)
+                .amount(BigDecimal.valueOf(20.00))
+                .status("SUCCESS")
+                .build();
+
+        paymentStatusConsumer.handlePaymentStatus(paymentSuccess);
+
+        Booking confirmedBooking = bookingRepository.findById(testBookingId).orElseThrow();
+        assertThat(confirmedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
+
+        BookingStatusEvent lateSeatsReserved = BookingStatusEvent.builder()
+                .bookingId(testBookingId)
+                .status("SEATS_RESERVED")
+                .build();
+
+        movieStatusConsumer.handleStatusUpdate(lateSeatsReserved);
+
+        Booking finalBooking = bookingRepository.findById(testBookingId).orElseThrow();
+        assertThat(finalBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
     }
 }
