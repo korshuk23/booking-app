@@ -2,7 +2,6 @@ package by.andrei.dev.movieservice.consumer;
 
 import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
-import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
@@ -46,22 +45,21 @@ public class BookingConsumer {
             log.warn("Payment failed for booking {}. Releasing seat {} and restoring capacity",
                     event.getBookingId(), event.getSeatId());
 
-            seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
-                seat.setStatus(Seat.SeatStatus.FREE);
-                seat.setBookingId(null);
-                seat.setReservedAt(null);
-                seatRepository.save(seat);
+            int releasedRows = seatRepository.releaseSeatIfReservedByBooking(event.getSeatId(), event.getBookingId());
 
-                movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
-                log.info("Capacity restored for session {} after payment failure", seat.getSessionId());
-            });
+            if (releasedRows > 0) {
+                movieSessionRepository.incrementAvailableSeats(event.getSessionId());
+                log.info("Seat {} successfully released and session quota restored for booking {}",
+                        event.getSeatId(), event.getBookingId());
+            } else {
+                log.warn("Ignored seat release: seat {} was not reserved by booking {}",
+                        event.getSeatId(), event.getBookingId());
+            }
+
         } else if ("SUCCESS".equals(event.getStatus())) {
-            log.info("Payment confirmed for booking {}. Finalizing seat {} to BOOKED",
-                    event.getBookingId(), event.getSeatId());
-            seatRepository.findById(event.getSeatId()).ifPresent(seat -> {
-                seat.setStatus(Seat.SeatStatus.BOOKED);
-                seatRepository.save(seat);
-            });
+            int finalizedRows = seatRepository.finalizeSeatToBooked(event.getSeatId(), event.getBookingId());
+            log.info("Seat {} finalized to BOOKED for booking {}. Rows affected: {}",
+                    event.getSeatId(), event.getBookingId(), finalizedRows);
         }
     }
 }
