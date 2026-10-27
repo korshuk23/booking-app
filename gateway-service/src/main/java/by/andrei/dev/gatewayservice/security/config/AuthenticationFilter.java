@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
@@ -18,14 +19,22 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AuthenticationFilter implements GlobalFilter, Ordered {
 
+    private static final String HEADER_USER_ID = "X-User-Id";
+    private static final String HEADER_USER_ROLES = "X-User-Roles";
+    private static final String HEADER_USER_EMAIL = "X-User-Email";
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest sanitizedRequest = exchange.getRequest().mutate()
+                .headers(headers -> {
+                    headers.remove(HEADER_USER_ID);
+                    headers.remove(HEADER_USER_ROLES);
+                    headers.remove(HEADER_USER_EMAIL);
+                })
+                .build();
+
         ServerWebExchange sanitizedExchange = exchange.mutate()
-                .request(r -> r.headers(headers -> {
-                    headers.remove("X-User-Id");
-                    headers.remove("X-User-Roles");
-                    headers.remove("X-User-Email");
-                }))
+                .request(sanitizedRequest)
                 .build();
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
@@ -40,19 +49,20 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
                     String email = jwtAuth.getToken().getClaimAsString("email");
 
-                    ServerWebExchange mutatedExchange = exchange.mutate()
+                    ServerWebExchange enrichedExchange = sanitizedExchange.mutate()
                             .request(builder -> {
-                                builder.header("X-User-Id", userId);
-                                builder.header("X-User-Roles", roles);
-                                if (email != null) {
-                                    builder.header("X-User-Email", email);
+                                builder.header(HEADER_USER_ID, userId);
+                                builder.header(HEADER_USER_ROLES, roles);
+                                if (email != null && !email.isBlank()) {
+                                    builder.header(HEADER_USER_EMAIL, email);
                                 }
                             })
                             .build();
 
-                    return chain.filter(mutatedExchange);
+                    log.debug("Sanitized & enriched request for user: {} with roles: [{}]", userId, roles);
+                    return chain.filter(enrichedExchange);
                 })
-                .switchIfEmpty(chain.filter(exchange));
+                .switchIfEmpty(Mono.defer(() -> chain.filter(sanitizedExchange)));
     }
 
     @Override
