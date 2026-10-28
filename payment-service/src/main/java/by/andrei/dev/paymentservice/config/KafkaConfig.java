@@ -13,10 +13,11 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.converter.ConversionException;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
-import org.springframework.util.backoff.FixedBackOff;
+import org.springframework.messaging.converter.MessageConversionException;
+import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -67,12 +68,21 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
-        // Если сообщение "не переваривается", отправляем его в топик с постфиксом .dlq (например, payment-events.dlq)
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
-                (record, exception) -> new TopicPartition(record.topic() + ".dlq", record.partition()));
+                (record, exception) -> new TopicPartition(record.topic() + ".dlq", -1));
 
-        // Настройка ретраев: 3 попытки, 1 секунда между попытками
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+        ExponentialBackOff backOff = new ExponentialBackOff(1000L, 2.0);
+        backOff.setMaxAttempts(3);
+
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
+
+        errorHandler.addNotRetryableExceptions(
+                IllegalArgumentException.class,
+                MessageConversionException.class,
+                ConversionException.class
+        );
+
+        return errorHandler;
     }
 
     @Bean

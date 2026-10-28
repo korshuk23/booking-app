@@ -9,11 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -23,54 +22,38 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
-    private final TransactionTemplate transactionTemplate;
-
 
     private static final String TOPIC = "booking-events";
     private static final int KAFKA_ACK_TIMEOUT_SECONDS = 5;
 
     @Scheduled(fixedDelayString = "${outbox.publisher.delay:1000}")
+    @Transactional
     public void publishPendingEvents() {
-        List<OutboxEvent> eventsToPublish = transactionTemplate.execute(status -> {
-            List<OutboxEvent> pending = outboxRepository.findPendingEventsForProcessing();
-            for (OutboxEvent event : pending) {
-                event.setStatus("PROCESSING");
-            }
-            return pending;
-        });
+        List<OutboxEvent> pendingEvents = outboxRepository.findPendingEventsForProcessing();
 
-        if (eventsToPublish == null || eventsToPublish.isEmpty()) {
+        if (pendingEvents.isEmpty()) {
             return;
         }
 
-        log.debug("Locked and processing {} outbox events", eventsToPublish.size());
+        log.debug("Locked and processing {} outbox events", pendingEvents.size());
 
-        for (OutboxEvent event : eventsToPublish) {
+        for (OutboxEvent event : pendingEvents) {
             try {
-                BookingEvent bookingEvent = objectMapper.readValue(event.getPayload(), BookingEvent.class);
 
-                kafkaTemplate.send(TOPIC, bookingEvent.getSeatId().toString(), bookingEvent)
+                BookingEvent payload = objectMapper.readValue(event.getPayload(), BookingEvent.class);
+
+                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), payload)
                         .get(KAFKA_ACK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-                markEventStatus(event.getId(), "SENT");
+                event.setStatus("SENT");
+                event.setSentAt(LocalDateTime.now());
+                outboxRepository.save(event);
+
                 log.info("Successfully published outbox event {} to Kafka topic {}", event.getId(), TOPIC);
             } catch (Exception e) {
-                log.error("Failed to publish outbox event {}. Rolling back to PENDING. Halting batch.", event.getId(), e);
-                markEventStatus(event.getId(), "PENDING");
+                log.error("Failed to publish outbox event {}. Halting batch to preserve ordering.", event.getId(), e);
                 break;
             }
         }
-    }
-
-    private void markEventStatus(UUID eventId, String status) {
-        transactionTemplate.executeWithoutResult(txStatus -> {
-            outboxRepository.findById(eventId).ifPresent(ev -> {
-                ev.setStatus(status);
-                if ("SENT".equals(status)) {
-                    ev.setSentAt(LocalDateTime.now());
-                }
-                outboxRepository.save(ev);
-            });
-        });
     }
 }

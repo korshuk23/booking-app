@@ -23,17 +23,19 @@ public class OutboxPublisher {
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
+
     private static final String TOPIC = "booking-status-events";
     private static final int KAFKA_ACK_TIMEOUT_SECONDS = 5;
 
     @Scheduled(fixedDelay = 1000)
+    @Transactional
     public void publishPendingEvents() {
         List<OutboxEvent> pendingEvents = outboxRepository.findPendingEventsForProcessing();
         if (pendingEvents.isEmpty()) {
             return;
         }
 
-        log.debug("Found {} pending outbox events to publish", pendingEvents.size());
+        log.debug("Locked and processing {} outbox events", pendingEvents.size());
 
         for (OutboxEvent event : pendingEvents) {
             try {
@@ -42,19 +44,15 @@ public class OutboxPublisher {
                 kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), statusEvent)
                         .get(KAFKA_ACK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-                markEventAsSent(event.getId());
+                event.setStatus("SENT");
+                event.setSentAt(LocalDateTime.now());
+                outboxRepository.save(event);
+
                 log.info("Successfully published outbox event {} to Kafka topic {}", event.getId(), TOPIC);
             } catch (Exception e) {
-                log.error("Failed to publish outbox event {}. Will retry on next tick.", event.getId(), e);
+                log.error("Failed to publish outbox event {}. Halting batch to preserve ordering.", event.getId(), e);
+                break;
             }
         }
-    }
-
-    private void markEventAsSent(UUID eventId) {
-        outboxRepository.findById(eventId).ifPresent(ev -> {
-            ev.setStatus("SENT");
-            ev.setSentAt(LocalDateTime.now());
-            outboxRepository.save(ev);
-        });
     }
 }
