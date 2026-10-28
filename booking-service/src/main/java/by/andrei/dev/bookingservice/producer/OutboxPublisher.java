@@ -49,7 +49,7 @@ public class OutboxPublisher {
             try {
                 BookingEvent bookingEvent = objectMapper.readValue(event.getPayload(), BookingEvent.class);
 
-                kafkaTemplate.send(TOPIC, event.getAggregateId().toString(), bookingEvent)
+                kafkaTemplate.send(TOPIC, bookingEvent.getSeatId().toString(), bookingEvent)
                         .get(KAFKA_ACK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                 markEventStatus(event.getId(), "SENT");

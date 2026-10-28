@@ -31,6 +31,9 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers:localhost:29092}")
     private String bootstrapServers;
 
+    @Value("${kafka.listener.concurrency:3}")
+    private int listenerConcurrency;
+
     // --- CONSUMER CONFIG ---
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
@@ -44,16 +47,16 @@ public class KafkaConfig {
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), new StringDeserializer());
     }
 
-    // --- УМНЫЙ КОНВЕРТЕР (Превращает JSON строку в нужный DTO класс) ---
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(DefaultErrorHandler errorHandler) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.setRecordMessageConverter(new StringJsonMessageConverter());
         factory.setCommonErrorHandler(errorHandler);
+        factory.setConcurrency(listenerConcurrency);
         return factory;
     }
-    // --- PRODUCER CONFIG (Для отправки статусов обратно) ---
+
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
         Map<String, Object> configProps = new HashMap<>();
@@ -72,7 +75,6 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
-        // Если сообщение "не переваривается", отправляем его в топик с постфиксом .dlq (например, payment-events.dlq)
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
                 (record, exception) -> new TopicPartition(record.topic() + ".dlq", record.partition()));
 

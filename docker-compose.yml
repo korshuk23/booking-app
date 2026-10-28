@@ -16,6 +16,7 @@ x-common-env: &common-env
 
 
 services:
+
   # 1. PostgreSQL (Общий сервер с базами auth_db, movie_db, booking_db, payment_db, keycloak_db)
   postgres-db:
     <<: *common-env
@@ -178,12 +179,15 @@ services:
         condition: service_started
       kafka:
         condition: service_started
+      redis:
+        condition: service_healthy
     environment:
       - DB_HOST=postgres-db
       - DB_PORT=5432
       - DB_USERNAME=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
       - BOOKING_SSE_TIMEOUT_MS=${BOOKING_SSE_TIMEOUT_MS:-60000}
       - OUTBOX_RETENTION_DAYS=${OUTBOX_RETENTION_DAYS:-3}
