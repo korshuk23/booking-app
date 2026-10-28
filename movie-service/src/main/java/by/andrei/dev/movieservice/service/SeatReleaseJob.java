@@ -34,11 +34,7 @@ public class SeatReleaseJob {
     @Scheduled(fixedRateString = "${seat.release.job-rate-ms:60000}")
     @Transactional
     public void releaseExpiredReservations() {
-        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(timeoutMinutes);
-
-        List<Seat> expiredSeats = seatRepository.findByStatusAndReservedAtBefore(
-                Seat.SeatStatus.RESERVED, expirationTime
-        );
+        List<Seat> expiredSeats = seatRepository.releaseExpired(LocalDateTime.now());
 
         if (expiredSeats.isEmpty()) {
             return;
@@ -47,21 +43,12 @@ public class SeatReleaseJob {
         log.info("Found {} expired seat reservations. Releasing...", expiredSeats.size());
 
         for (Seat seat : expiredSeats) {
-            UUID expiredBookingId = seat.getBookingId();
-
-            seat.setStatus(Seat.SeatStatus.FREE);
-            seat.setReservedAt(null);
-            seat.setBookingId(null);
-
             movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
-            log.info("Restored 1 seat capacity for session {}", seat.getSessionId());
 
-            if (expiredBookingId != null) {
-                emitCancellationOutboxEvent(expiredBookingId, seat);
+            if (seat.getBookingId() != null) {
+                emitCancellationOutboxEvent(seat.getBookingId(), seat);
             }
         }
-
-        seatRepository.saveAll(expiredSeats);
     }
 
     private void emitCancellationOutboxEvent(UUID bookingId, Seat seat) {

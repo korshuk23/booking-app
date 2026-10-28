@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/changeset/v7-add-booking-id-to-seats.sql
   - include:
       file: db/changelog/changeset/v8-seats-reservation-indexes.sql
+  - include:
+      file: db/changelog/changeset/v9-add-expires-at-to-seats.sql

@@ -38,6 +38,9 @@ public class Seat {
     @Column(name = "reserved_at")
     private LocalDateTime reservedAt;
 
+    @Column(name = "expired_at")
+    private LocalDateTime expiredAt;
+
     @Column(name = "booking_id")
     private UUID bookingId;
 

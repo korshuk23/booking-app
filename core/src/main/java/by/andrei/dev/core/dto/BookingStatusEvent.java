@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -20,5 +21,6 @@ public class BookingStatusEvent {
     private BigDecimal price;
     private String status;
     private String message;
+    private LocalDateTime expiresAt;
 }
 

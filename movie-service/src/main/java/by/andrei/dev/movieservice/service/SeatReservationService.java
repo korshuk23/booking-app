@@ -10,6 +10,7 @@ import by.andrei.dev.movieservice.repository.SeatRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,10 @@ public class SeatReservationService {
     private final ObjectMapper objectMapper;
     private final MovieSessionRepository movieSessionRepository;
 
+    @Value("${seat.reservation.timeout-minutes:15}")
+    private long timeoutMinutes;
+
+
     @Transactional
     public void reserve(BookingEvent event) {
         if (processedBookingRepository.markProcessed(event.getBookingId()) == 0) {
@@ -33,11 +38,14 @@ public class SeatReservationService {
             return;
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiresAt = now.plusMinutes(15);
+
         int reserved = seatRepository.tryReserve(
-                event.getSeatId(), event.getSessionId(), event.getBookingId(), LocalDateTime.now());
+                event.getSeatId(), event.getSessionId(), event.getBookingId(), now, expiresAt);
 
         if (reserved == 0) {
-            saveOutboxEvent(event, "REJECTED", "Seat is not available");
+            saveOutboxEvent(event, "REJECTED", "Seat is not available", null);
             return;
         }
 
@@ -46,10 +54,10 @@ public class SeatReservationService {
                     event.getSessionId());
         }
 
-        saveOutboxEvent(event, "SEATS_RESERVED", "Seat locked for payment");
+        saveOutboxEvent(event, "SEATS_RESERVED", "Seat locked for payment", expiresAt);
     }
 
-    private void saveOutboxEvent(BookingEvent event, String status, String message) {
+    private void saveOutboxEvent(BookingEvent event, String status, String message, LocalDateTime expiresAt) {
         try {
             BookingStatusEvent statusEvent = BookingStatusEvent.builder()
                     .bookingId(event.getBookingId())
@@ -59,6 +67,7 @@ public class SeatReservationService {
                     .price(event.getPrice())
                     .status(status)
                     .message(message)
+                    .expiresAt(expiresAt)
                     .build();
 
             OutboxEvent outboxEvent = OutboxEvent.builder()
