@@ -3,9 +3,8 @@ package by.andrei.dev.movieservice.consumer;
 import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
-import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
-import by.andrei.dev.movieservice.service.SeatReservationCoordinator;
+import by.andrei.dev.movieservice.service.SeatReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,20 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class BookingConsumer {
     private final MovieSessionRepository movieSessionRepository;
-    private final ProcessedBookingRepository processedBookingRepository;
-    private final SeatReservationCoordinator seatReservationCoordinator;
+    private final SeatReservationService seatReservationService;
     private final SeatRepository seatRepository;
 
     @KafkaListener(topics = "booking-events", groupId = "movie-group-v2")
     public void consume(BookingEvent event) {
         log.info("Processing booking event: bookingId={}, seatId={}", event.getBookingId(), event.getSeatId());
-
-        if (processedBookingRepository.existsById(event.getBookingId())) {
-            log.warn("Booking {} already processed, skipping", event.getBookingId());
-            return;
-        }
-
-        seatReservationCoordinator.processReservationWithLock(event);
+        seatReservationService.reserve(event);
     }
 
     @KafkaListener(topics = "payment-events", groupId = "movie-compensation-group")

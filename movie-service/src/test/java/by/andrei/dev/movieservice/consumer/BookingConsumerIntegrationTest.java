@@ -92,14 +92,12 @@ public class BookingConsumerIntegrationTest {
         sessionRepository.deleteAll();
         movieRepository.deleteAll();
 
-        // 1. Создаем фильм
         Movie movie = movieRepository.save(Movie.builder()
                 .title("Интерстеллар")
                 .price(BigDecimal.valueOf(15.00))
                 .isAvailable(true)
                 .build());
 
-        // 2. Создаем сеанс
         MovieSession session = sessionRepository.save(MovieSession.builder()
                 .movieId(movie.getId())
                 .startTime(LocalDateTime.now().plusHours(2))
@@ -108,7 +106,6 @@ public class BookingConsumerIntegrationTest {
                 .build());
         testSessionId = session.getId();
 
-        // 3. Создаем свободное кресло (БЕЗ version(0L) — Hibernate сам сделает persist!)
         Seat seat = seatRepository.save(Seat.builder()
                 .sessionId(testSessionId)
                 .rowNumber(1)
@@ -144,21 +141,23 @@ public class BookingConsumerIntegrationTest {
     @Test
     @DisplayName("Сценарий 2: Компенсация Саги - откат кресла в FREE при сбое оплаты")
     void shouldCompensateAndReleaseSeatOnPaymentFailure() {
+        UUID bookingId = UUID.randomUUID();
         Seat seat = seatRepository.findById(testSeatId).orElseThrow();
         seat.setStatus(Seat.SeatStatus.RESERVED);
+        seat.setBookingId(bookingId);
+        seat.setReservedAt(LocalDateTime.now());
         seatRepository.saveAndFlush(seat);
 
         PaymentEvent failureEvent = PaymentEvent.builder()
-                .bookingId(UUID.randomUUID())
+                .bookingId(bookingId)
                 .seatId(testSeatId)
+                .sessionId(testSessionId)
                 .status("FAILED")
                 .failureReason("Declined by bank")
                 .build();
 
-        // When: прилетает событие сбоя оплаты
         bookingConsumer.handlePaymentCompensation(failureEvent);
 
-        // Then: кресло автоматически вернулось в статус FREE!
         Seat compensatedSeat = seatRepository.findById(testSeatId).orElseThrow();
         assertThat(compensatedSeat.getStatus()).isEqualTo(Seat.SeatStatus.FREE);
     }
@@ -166,7 +165,6 @@ public class BookingConsumerIntegrationTest {
     @Test
     @DisplayName("Сценарий 3: Битва за кресло - только один успевает занять место, второй получает REJECTED")
     void shouldAllowOnlyOneBookingWhenConcurrentRequestsArrive() throws InterruptedException {
-        // Given: 2 параллельных потока пытаются купить одно кресло
         int threadCount = 2;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -192,16 +190,12 @@ public class BookingConsumerIntegrationTest {
                 }
             });
         }
-        // When: одновременный выстрел
         startLatch.countDown();
         endLatch.await(5, TimeUnit.SECONDS);
 
-        // Then
-        // 1. Кресло занято ровно один раз
         Seat seat = seatRepository.findById(testSeatId).orElseThrow();
         assertThat(seat.getStatus()).isEqualTo(Seat.SeatStatus.RESERVED);
 
-        // 2. В Outbox ровно 1 успешное событие (SEATS_RESERVED) и 1 отказ (REJECTED)
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(2);
 
@@ -215,7 +209,6 @@ public class BookingConsumerIntegrationTest {
     @Test
     @DisplayName("Сценарий 4: Идемпотентность — повторное сообщение из Kafka игнорируется без ошибок и дублей")
     void shouldIgnoreDuplicateBookingEventIdempotently() {
-        // Given: заказ отправляется первый раз
         UUID bookingId = UUID.randomUUID();
         BookingEvent event = BookingEvent.builder()
                 .bookingId(bookingId)
@@ -227,14 +220,11 @@ public class BookingConsumerIntegrationTest {
 
         bookingConsumer.consume(event);
 
-        // Убедились, что первый раз обработался
         assertThat(outboxRepository.findAll()).hasSize(1);
         assertThat(seatRepository.findById(testSeatId).orElseThrow().getStatus()).isEqualTo(Seat.SeatStatus.RESERVED);
 
-        // When: Kafka присылает ТОЧНО ТАКОЕ ЖЕ сообщение повторно (сетевой дубль)
         bookingConsumer.consume(event);
 
-        // Then: никаких новых записей в Outbox не появилось, статус кресла не сломался
         assertThat(outboxRepository.findAll()).hasSize(1);
         assertThat(processedBookingRepository.existsById(bookingId)).isTrue();
     }
@@ -242,22 +232,23 @@ public class BookingConsumerIntegrationTest {
     @Test
     @DisplayName("Сценарий 5: Успешная оплата — кресло переходит из RESERVED в финальный статус BOOKED")
     void shouldFinalizeSeatToBookedOnPaymentSuccess() {
-        // Given: кресло зарезервировано
+        UUID bookingId = UUID.randomUUID();
         Seat seat = seatRepository.findById(testSeatId).orElseThrow();
         seat.setStatus(Seat.SeatStatus.RESERVED);
+        seat.setBookingId(bookingId);
+        seat.setReservedAt(LocalDateTime.now());
         seatRepository.saveAndFlush(seat);
 
         PaymentEvent successPayment = PaymentEvent.builder()
-                .bookingId(UUID.randomUUID())
+                .bookingId(bookingId)
                 .seatId(testSeatId)
+                .sessionId(testSessionId)
                 .status("SUCCESS")
                 .amount(BigDecimal.valueOf(15.00))
                 .build();
 
-        // When: прилетает подтверждение успешной оплаты
         bookingConsumer.handlePaymentCompensation(successPayment);
 
-        // Then: статус кресла стал окончательно BOOKED
         Seat finalizedSeat = seatRepository.findById(testSeatId).orElseThrow();
         assertThat(finalizedSeat.getStatus()).isEqualTo(Seat.SeatStatus.BOOKED);
     }
@@ -283,7 +274,6 @@ public class BookingConsumerIntegrationTest {
     @Test
     @DisplayName("Сценарий 7: Несуществующее кресло — корректно формирует REJECTED, сервис не падает")
     void shouldGenerateRejectedEventWhenSeatDoesNotExist() {
-        // Given: событие с несуществующим seatId
         UUID nonExistentSeatId = UUID.randomUUID();
         BookingEvent event = BookingEvent.builder()
                 .bookingId(UUID.randomUUID())
@@ -300,6 +290,35 @@ public class BookingConsumerIntegrationTest {
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(1);
         assertThat(outbox.get(0).getEventType()).isEqualTo("REJECTED");
-        assertThat(outbox.get(0).getPayload()).contains("Seat not found with ID");
+        assertThat(outbox.get(0).getPayload()).contains("Seat is not available");
+    }
+
+    @Test
+    @DisplayName("Сценарий 8: Кресло из другого сеанса: REJECTED, кресло и счётчик не тронуты")
+    void shouldRejectWhenSeatBelongsToAnotherSession() {
+        BookingEvent event = BookingEvent.builder()
+                .bookingId(UUID.randomUUID()).seatId(testSeatId)
+                .sessionId(UUID.randomUUID())              // чужой сеанс
+                .userId(UUID.randomUUID()).price(BigDecimal.TEN).build();
+
+        bookingConsumer.consume(event);
+
+        assertThat(seatRepository.findById(testSeatId).orElseThrow().getStatus())
+                .isEqualTo(Seat.SeatStatus.FREE);
+        assertThat(outboxRepository.findAll()).extracting(OutboxEvent::getEventType)
+                .containsExactly("REJECTED");
+    }
+
+    @Test
+    @DisplayName("Сценарий 9: Повторная доставка отказа не плодит дубли")
+    void shouldNotDuplicateRejectionOnRedelivery() {
+        BookingEvent event = BookingEvent.builder()
+                .bookingId(UUID.randomUUID()).seatId(UUID.randomUUID())   // кресла нет
+                .sessionId(testSessionId).userId(UUID.randomUUID()).price(BigDecimal.TEN).build();
+
+        bookingConsumer.consume(event);
+        bookingConsumer.consume(event);
+
+        assertThat(outboxRepository.findAll()).hasSize(1);
     }
 }

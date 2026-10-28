@@ -3,8 +3,6 @@ package by.andrei.dev.movieservice.service;
 import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
-import by.andrei.dev.movieservice.entity.ProcessedBooking;
-import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.ProcessedBookingRepository;
@@ -13,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -30,32 +27,26 @@ public class SeatReservationService {
     private final MovieSessionRepository movieSessionRepository;
 
     @Transactional
-    public void reserveSeatAndSaveOutbox(BookingEvent event) {
-        Seat seat = seatRepository.findById(event.getSeatId())
-                .orElseThrow(() -> new IllegalArgumentException("Seat not found with ID: " + event.getSeatId()));
-
-        if (seat.getStatus() != Seat.SeatStatus.FREE) {
-            throw new IllegalStateException("Seat is already taken");
+    public void reserve(BookingEvent event) {
+        if (processedBookingRepository.markProcessed(event.getBookingId()) == 0) {
+            log.warn("Booking {} already processed, skipping", event.getBookingId());
+            return;
         }
 
-        int updatedRows = movieSessionRepository.decrementAvailableSeats(event.getSessionId());
-        if (updatedRows == 0) {
-            throw new IllegalStateException("No available seats left for this session");
+        int reserved = seatRepository.tryReserve(
+                event.getSeatId(), event.getSessionId(), event.getBookingId(), LocalDateTime.now());
+
+        if (reserved == 0) {
+            saveOutboxEvent(event, "REJECTED", "Seat is not available");
+            return;
         }
 
-        seat.setStatus(Seat.SeatStatus.RESERVED);
-        seat.setReservedAt(LocalDateTime.now());
-        seat.setBookingId(event.getBookingId());
-        seatRepository.saveAndFlush(seat);
-
-        processedBookingRepository.save(new ProcessedBooking(event.getBookingId()));
+        if (movieSessionRepository.decrementAvailableSeats(event.getSessionId()) == 0) {
+            log.error("available_seats drift for session {}: seat reserved but counter is already 0",
+                    event.getSessionId());
+        }
 
         saveOutboxEvent(event, "SEATS_RESERVED", "Seat locked for payment");
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveRejectionOutbox(BookingEvent event, String message) {
-        saveOutboxEvent(event, "REJECTED", message);
     }
 
     private void saveOutboxEvent(BookingEvent event, String status, String message) {
