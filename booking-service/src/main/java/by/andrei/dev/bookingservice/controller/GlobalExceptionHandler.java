@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
 import java.time.Instant;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 @RestControllerAdvice
 @Slf4j
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handleResponseStatus(ResponseStatusException ex) {
@@ -58,17 +59,6 @@ public class GlobalExceptionHandler {
                 fieldErrors.put(error.getField(), error.getDefaultMessage()));
         problem.setProperty("invalidFields", fieldErrors);
 
-        return problem;
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ProblemDetail handleGeneralError(Exception ex) {
-        log.error("Unhandled internal server error occurred", ex);
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected internal error occurred. Please contact support.");
-        problem.setTitle("Internal Server Error");
-        problem.setType(URI.create("https://teacinema.dev/errors/internal"));
-        problem.setProperty("timestamp", Instant.now());
         return problem;
     }
 

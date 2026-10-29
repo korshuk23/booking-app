@@ -25,21 +25,13 @@ public class MovieStatusConsumer {
         bookingRepository.findById(event.getBookingId()).ifPresentOrElse(booking -> {
             try {
                 Booking.BookingStatus before = booking.getStatus();
-                Booking.BookingStatus target;
 
-                switch (event.getStatus()) {
-                    case "ORPHANED_PAYMENT":
-                    case "CANCELLED":
-                    case "REJECTED":
-                        target = Booking.BookingStatus.CANCELLED;
-                        break;
-                    case "SEAT_BOOKED":
-                    case "CONFIRMED":
-                        target = Booking.BookingStatus.CONFIRMED;
-                        break;
-                    default:
-                        target = Booking.BookingStatus.valueOf(event.getStatus());
-                }
+                Booking.BookingStatus target = switch (event.getStatus()) {
+                    case "ORPHANED_PAYMENT", "CANCELLED" -> Booking.BookingStatus.CANCELLED;
+                    case "REJECTED" -> Booking.BookingStatus.REJECTED;
+                    case "SEAT_BOOKED", "CONFIRMED" -> Booking.BookingStatus.CONFIRMED;
+                    default -> Booking.BookingStatus.valueOf(event.getStatus());
+                };
 
                 booking.transitionTo(target);
                 bookingRepository.save(booking);

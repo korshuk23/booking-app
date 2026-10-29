@@ -26,7 +26,7 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                SET status = 'RESERVED',
                    booking_id = :bookingId,
                    reserved_at = :now,
-                   expired_at = :expiredAt,
+                   expired_at = :expiresAt,
                    version = version + 1
              WHERE id = :seatId
                AND session_id = :sessionId
@@ -39,12 +39,13 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                    @Param("expiresAt") LocalDateTime expiresAt);
 
     @Modifying
-    @Query("UPDATE Seat s SET s.status = 'BOOKED', s.expiresAt = null " +
+    @Query("UPDATE Seat s SET s.status = 'BOOKED', s.expiresAt = null, s.version = s.version + 1 " +
             "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
     int finalizeSeatToBooked(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
 
     @Modifying
-    @Query("UPDATE Seat s SET s.status = 'FREE', s.bookingId = null, s.reservedAt = null, s.expiresAt = null " +
+    @Query("UPDATE Seat s SET s.status = 'FREE', s.bookingId = null, s.reservedAt = null, " +
+            "s.expiresAt = null, s.version = s.version + 1 " +
             "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
     int releaseSeatIfReservedByBooking(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
 

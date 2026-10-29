@@ -1,5 +1,9 @@
 server:
   port: 8081
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      remote-ip-header: X-Forwarded-For
 
 spring:
   data:

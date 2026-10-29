@@ -28,19 +28,24 @@ public class PaymentService {
     public void processPaymentEvent(BookingStatusEvent event) {
         Payment payment = txTemplate.execute(status -> {
             var existingPaymentOpt = paymentRepository.findByBookingId(event.getBookingId());
+            boolean isExpired = event.getExpiresAt() != null && event.getExpiresAt().isBefore(LocalDateTime.now().plusSeconds(30));
 
             if (existingPaymentOpt.isPresent()) {
                 Payment existing = existingPaymentOpt.get();
                 if ("PENDING".equals(existing.getStatus())) {
+                    if (isExpired) {
+                        log.warn("Pending payment for booking {} expired. Failing.", event.getBookingId());
+                        existing.setStatus("FAILED");
+                        existing.setFailureReason("Reservation expired during payment retry");
+                        saveOutboxEvent(existing, event);
+                        return null;
+                    }
                     log.info("Resuming stuck PENDING payment for booking {}", event.getBookingId());
                     return existing;
                 }
                 log.warn("Payment for booking {} already final. Skipping.", event.getBookingId());
                 return null;
             }
-
-
-            boolean isExpired = event.getExpiresAt() != null && event.getExpiresAt().isBefore(LocalDateTime.now().plusSeconds(30));
 
             Payment newPayment = Payment.builder()
                     .bookingId(event.getBookingId())

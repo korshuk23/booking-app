@@ -64,33 +64,34 @@ public class BookingNotificationService {
         CopyOnWriteArraySet<SseEmitter> emitters = emitterCache.get(bookingId, k -> new CopyOnWriteArraySet<>());
         emitters.add(emitter);
 
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> {
-                    emitters.remove(emitter);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found");
-                });
-
-        Runnable removeCallback = () -> emitters.remove(emitter);
-        emitter.onCompletion(removeCallback);
-        emitter.onTimeout(removeCallback);
-        emitter.onError(e -> removeCallback.run());
-
         try {
+            Booking booking = bookingRepository.findById(bookingId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
+
+            if (!booking.getUserId().equals(requestingUserId)) {
+                log.warn("Security Alert: User {} attempted to subscribe to booking {}", requestingUserId, bookingId);
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied");
+            }
+
+            Runnable removeCallback = () -> emitters.remove(emitter);
+            emitter.onCompletion(removeCallback);
+            emitter.onTimeout(removeCallback);
+            emitter.onError(e -> removeCallback.run());
+
             emitter.send(SseEmitter.event()
                     .name("INIT")
-                    .data(Map.of(
-                            "bookingId", bookingId,
-                            "status", booking.getStatus().name(),
-                            "message", "Subscribed to real-time updates"
-                    )));
+                    .data(Map.of("bookingId", bookingId, "status", booking.getStatus().name(), "message", "Subscribed")));
 
-            if (booking.getStatus() == Booking.BookingStatus.CONFIRMED ||
-                    booking.getStatus() == Booking.BookingStatus.CANCELLED ||
-                    booking.getStatus() == Booking.BookingStatus.REJECTED) {
+            if (isTerminalStatus(booking.getStatus().name())) {
                 emitter.complete();
             }
-        } catch (IOException e) {
+
+        } catch (IOException ex) {
+            log.debug("Network error during INIT send for booking {}. Client probably disconnected.", bookingId);
             emitters.remove(emitter);
+        } catch (RuntimeException ex) {
+            emitters.remove(emitter);
+            throw ex;
         }
 
         return emitter;

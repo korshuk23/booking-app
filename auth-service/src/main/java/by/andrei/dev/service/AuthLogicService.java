@@ -49,14 +49,13 @@ public class AuthLogicService {
         }
 
         String cooldownKey = "otp:cooldown:" + identifier;
-        if (redisTemplate.hasKey(cooldownKey)) {
+        Boolean canSend = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "lock", Duration.ofMinutes(1));
+        if (Boolean.FALSE.equals(canSend)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Try to get next code one minute later.");
         }
-        redisTemplate.opsForValue().set(cooldownKey, "lock", Duration.ofMinutes(1));
 
         int bound = (int) Math.pow(10, otpLength);
         String code = String.format("%0" + otpLength + "d", SECURE_RANDOM.nextInt(bound));
-
         redisTemplate.opsForValue().set("otp:code:" + identifier, code, Duration.ofSeconds(otpExpirationSec));
 
         if (logOtp) {
@@ -68,29 +67,40 @@ public class AuthLogicService {
 
     public String verifyOtpAndGenerateToken(String rawIdentifier, String code, String ipAddress) {
         String identifier = normalize(rawIdentifier);
+
         String attemptKey = "otp:attempts:ip:" + ipAddress;
         Long attempts = redisTemplate.opsForValue().increment(attemptKey);
-        if (attempts != null && attempts == 1) redisTemplate.expire(attemptKey, Duration.ofMinutes(15));
-
+        if (attempts != null && attempts == 1) {
+            redisTemplate.expire(attemptKey, Duration.ofMinutes(15));
+        }
         if (attempts != null && attempts > 5) {
             log.warn("Brute-force attempt detected from IP: {}", ipAddress);
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "oo many attempts from your IP. Please wait 15 minutes.");
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Слишком много попыток с вашего IP. Подождите 15 минут.");
         }
 
-        String savedCode = redisTemplate.opsForValue().getAndDelete("otp:code:" + identifier);
+        String key = "otp:code:" + identifier;
+        String savedCode = redisTemplate.opsForValue().get(key);
 
-        if (savedCode == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "OTP not found or expired");
+        boolean isCodeValid = savedCode != null && code != null &&
+                MessageDigest.isEqual(savedCode.getBytes(StandardCharsets.UTF_8), code.getBytes(StandardCharsets.UTF_8));
+
+        if (!isCodeValid) {
+            String failsKey = "otp:fails:" + identifier;
+            Long fails = redisTemplate.opsForValue().increment(failsKey);
+            if (fails != null && fails == 1) {
+                redisTemplate.expire(failsKey, Duration.ofMinutes(15));
+            }
+            if (fails != null && fails >= 5) {
+                redisTemplate.delete(key);
+            }
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired code");
         }
 
-        boolean matches = code != null && MessageDigest.isEqual(
-                savedCode.getBytes(StandardCharsets.UTF_8),
-                code.getBytes(StandardCharsets.UTF_8));
-
-        if (!matches) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incorrect OTP code");
+        if (!Boolean.TRUE.equals(redisTemplate.delete(key))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired code");
         }
 
+        redisTemplate.delete("otp:fails:" + identifier);
         redisTemplate.delete(attemptKey);
 
         User user = userRepository.findByIdentifier(identifier)
@@ -98,7 +108,7 @@ public class AuthLogicService {
 
         if (user.isBlocked()) {
             log.warn("Blocked user {} attempted to login", identifier);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account blocked");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Аккаунт заблокирован");
         }
 
         String hmacPassword = keycloakIntegrationService.generateHmacPassword(identifier);
