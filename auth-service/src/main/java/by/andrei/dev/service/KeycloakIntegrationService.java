@@ -1,18 +1,23 @@
 package by.andrei.dev.service;
 
+import by.andrei.dev.dto.AuthTokenResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +48,16 @@ public class KeycloakIntegrationService {
     @Value("${keycloak.hmac-secret}")
     private String hmacSecret;
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient = RestClient.builder()
+            .requestFactory(createClientHttpRequestFactory())
+            .build();
 
+    private static SimpleClientHttpRequestFactory createClientHttpRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(3));
+        factory.setReadTimeout(Duration.ofSeconds(5));
+        return factory;
+    }
 
     public String generateHmacPassword(String identifier) {
         try {
@@ -55,7 +68,7 @@ public class KeycloakIntegrationService {
             return HexFormat.of().formatHex(rawHmac);
         } catch (Exception e) {
             log.error("Failed to generate HMAC password for identifier {}", identifier, e);
-            throw new RuntimeException("Security configuration failure", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Security configuration failure");
         }
     }
 
@@ -65,55 +78,57 @@ public class KeycloakIntegrationService {
         String usersUrl = serverUrl + "/admin/realms/" + realm + "/users";
 
         try {
+            // Безопасный вызов с URI-шаблонами (Spring безопасно экранирует спецсимволы вроде '+')
             List<Map<String, Object>> users = restClient.get()
-                    .uri(usersUrl + "?username=" + identifier + "&exact=true")
+                    .uri(usersUrl + "?username={username}&exact=true", identifier)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                     .retrieve()
                     .body(List.class);
 
-            String userId;
+            if (users != null && !users.isEmpty()) {
+                log.debug("User '{}' already exists in Keycloak. Skipping setup.", identifier);
+                return;
+            }
+
+            log.info("User '{}' not found in Keycloak. Creating...", identifier);
+
             String email = identifier.contains("@") ? identifier : identifier + "@cinema.dev";
             String firstName = identifier.contains("@") ? identifier.split("@")[0] : identifier;
             String lastName = "User";
 
-            if (users == null || users.isEmpty()) {
-                log.info("User '{}' not found in Keycloak. Creating...", identifier);
+            var createResponse = restClient.post()
+                    .uri(usersUrl)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "username", identifier,
+                            "email", email,
+                            "firstName", firstName,
+                            "lastName", lastName,
+                            "enabled", true,
+                            "emailVerified", true,
+                            "requiredActions", List.of()
+                    ))
+                    .retrieve()
+                    .toBodilessEntity();
 
-                var response = restClient.post()
-                        .uri(usersUrl)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of(
-                                "username", identifier,
-                                "email", email,
-                                "firstName", firstName,
-                                "lastName", lastName,
-                                "enabled", true,
-                                "emailVerified", true,
-                                "requiredActions", List.of()
-                        ))
-                        .retrieve()
-                        .toBodilessEntity();
-
-                var location = response.getHeaders().getLocation();
-                if (location != null) {
-                    String path = location.getPath();
-                    userId = path.substring(path.lastIndexOf('/') + 1);
-                } else {
-                    List<Map<String, Object>> created = restClient.get()
-                            .uri(usersUrl + "?username=" + identifier + "&exact=true")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                            .retrieve()
-                            .body(List.class);
-                    userId = (String) created.get(0).get("id");
-                }
-                log.info("User '{}' created with ID: {}", identifier, userId);
+            var location = createResponse.getHeaders().getLocation();
+            String userId;
+            if (location != null) {
+                String path = location.getPath();
+                userId = path.substring(path.lastIndexOf('/') + 1);
             } else {
-                userId = (String) users.get(0).get("id");
+                List<Map<String, Object>> created = restClient.get()
+                        .uri(usersUrl + "?username={username}&exact=true", identifier)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .retrieve()
+                        .body(List.class);
+                userId = (String) created.get(0).get("id");
             }
 
+            // Устанавливаем пароль ЕДИНОЖДЫ при создании аккаунта
             restClient.put()
-                    .uri(usersUrl + "/" + userId + "/reset-password")
+                    .uri(usersUrl + "/{userId}/reset-password", userId)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
@@ -124,39 +139,19 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .toBodilessEntity();
 
-            restClient.put()
-                    .uri(usersUrl + "/" + userId)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "firstName", firstName,
-                            "lastName", lastName,
-                            "emailVerified", true,
-                            "requiredActions", List.of()
-                    ))
-                    .retrieve()
-                    .toBodilessEntity();
-
-            log.info("User '{}' profile completed (firstName/lastName set, required actions cleared)", identifier);
+            log.info("User '{}' successfully registered and provisioned in Keycloak", identifier);
 
         } catch (Exception e) {
             log.error("Error setting up user in Keycloak: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to synchronize user with Identity Provider", e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to synchronize user with Identity Provider");
         }
     }
 
-    /**
-     * Запрашиваем токен у Keycloak, используя Client Credentials или Password Grant.
-     * В нашем случае мы можем использовать специальный технический пароль пользователя,
-     * либо настроить Token Exchange в Keycloak.
-     * Для простоты пет-проекта используем grant_type = password (Direct Access Grants).
-     */
+
     @SuppressWarnings("unchecked")
-    public String getTokenForUser(String identifier, String hmacPassword) {
-        log.info("Requesting Keycloak JWT token for user: {}", identifier);
-
+    public AuthTokenResponse getTokenForUser(String identifier, String hmacPassword) {
+        log.info("Requesting Keycloak JWT tokens for user: {}", identifier);
         String tokenUri = serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
-
 
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("client_id", clientId);
@@ -173,12 +168,50 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
-            return (String) response.get("access_token");
+            return mapTokenResponse(response);
         } catch (Exception e) {
-            log.error("Failed to get token from Keycloak for user {}", identifier, e);
-            throw new RuntimeException("Authorization server error");
+            log.error("Failed to get tokens from Keycloak for user {}", identifier, e);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization server error");
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public AuthTokenResponse refreshToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh token cannot be blank");
+        }
+
+        String tokenUri = serverUrl + "/realms/" + realm + "/protocol/openid-connect/token";
+
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
+        formData.add("grant_type", "refresh_token");
+        formData.add("refresh_token", refreshToken);
+
+        try {
+            Map<String, Object> response = restClient.post()
+                    .uri(tokenUri)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(formData)
+                    .retrieve()
+                    .body(Map.class);
+
+            return mapTokenResponse(response);
+        } catch (Exception e) {
+            log.warn("Invalid or expired refresh token: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+        }
+    }
+
+    private AuthTokenResponse mapTokenResponse(Map<String, Object> response) {
+        return AuthTokenResponse.builder()
+                .accessToken((String) response.get("access_token"))
+                .refreshToken((String) response.get("refresh_token"))
+                .expiresIn(response.get("expires_in") instanceof Number n ? n.longValue() : 300L)
+                .build();
+    }
+
 
     @SuppressWarnings("unchecked")
     private String getAdminAccessToken() {

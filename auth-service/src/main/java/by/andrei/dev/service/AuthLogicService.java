@@ -1,5 +1,6 @@
 package by.andrei.dev.service;
 
+import by.andrei.dev.dto.AuthTokenResponse;
 import by.andrei.dev.entity.User;
 import by.andrei.dev.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -65,7 +66,7 @@ public class AuthLogicService {
         }
     }
 
-    public String verifyOtpAndGenerateToken(String rawIdentifier, String code, String ipAddress) {
+    public AuthTokenResponse verifyOtpAndGenerateToken(String rawIdentifier, String code, String ipAddress) {
         String identifier = normalize(rawIdentifier);
 
         String attemptKey = "otp:attempts:ip:" + ipAddress;
@@ -115,6 +116,10 @@ public class AuthLogicService {
         keycloakIntegrationService.ensureUserExists(identifier, hmacPassword);
 
         return keycloakIntegrationService.getTokenForUser(identifier, hmacPassword);
+    }
+
+    public AuthTokenResponse refreshToken(String refreshToken) {
+        return keycloakIntegrationService.refreshToken(refreshToken);
     }
 
     private String normalize(String identifier) {

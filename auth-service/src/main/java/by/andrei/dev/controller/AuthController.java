@@ -1,5 +1,7 @@
 package by.andrei.dev.controller;
 
+import by.andrei.dev.dto.AuthTokenResponse;
+import by.andrei.dev.dto.RefreshTokenRequest;
 import by.andrei.dev.dto.SendOtpRequest;
 import by.andrei.dev.dto.VerifyOtpRequest;
 import by.andrei.dev.service.AuthLogicService;
@@ -24,7 +26,6 @@ public class AuthController {
 
     @PostMapping("/request")
     public ResponseEntity<Map<String, String>> requestOtp(@RequestBody SendOtpRequest request, HttpServletRequest httpRequest) {
-        log.info("REST: Request OTP for: {}", request.getIdentifier());
         String ip = httpRequest.getRemoteAddr();
         log.info("REST: Request OTP for: {} from IP: {}", request.getIdentifier(), ip);
         authLogicService.sendOtp(request.getIdentifier(), ip);
@@ -35,8 +36,14 @@ public class AuthController {
     public ResponseEntity<?> verifyOtp(@RequestBody VerifyOtpRequest request, HttpServletRequest httpRequest) {
         String ip = httpRequest.getRemoteAddr();
         log.info("REST: Verify OTP for: {} from IP: {}", request.getIdentifier(), ip);
-        // Убираем try-catch, так как мы добавим GlobalExceptionHandler
-        String token = authLogicService.verifyOtpAndGenerateToken(request.getIdentifier(), request.getCode(), ip);
-        return ResponseEntity.ok(Map.of("token", token, "type", "Bearer"));
+        AuthTokenResponse tokens = authLogicService.verifyOtpAndGenerateToken(request.getIdentifier(), request.getCode(), ip);
+        return ResponseEntity.ok(tokens);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthTokenResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
+        log.info("REST: Refreshing access token");
+        AuthTokenResponse tokens = authLogicService.refreshToken(request.getRefreshToken());
+        return ResponseEntity.ok(tokens);
     }
 }
