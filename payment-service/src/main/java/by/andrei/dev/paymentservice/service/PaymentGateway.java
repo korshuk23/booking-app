@@ -1,21 +1,27 @@
 package by.andrei.dev.paymentservice.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Random;
+import java.util.UUID;
 
 @Component
+@Slf4j
 public class PaymentGateway {
-    private final Random random = new Random();
 
-    /**
-     * Симуляция списания средств через внешний шлюз ().
-     * В реале здесь HTTP-запрос к API платежной системы.
-     */
-    public boolean processPayment(BigDecimal amount) {
-        // Симулируем 90% успешных оплат и 10% сбоев (нехватка средств/отклонено банком)
-        //return random.nextInt(100) < 90;
+    public boolean charge(BigDecimal amount, UUID idempotencyKey) {
+       log.info("PSP CHARGE requested: amount={}, idempotencyKey={}", amount, idempotencyKey);
         return true;
+    }
+
+    public boolean refund(BigDecimal amount, UUID idempotencyKey) {
+        log.info("PSP REFUND requested: amount={}, idempotencyKey={}", amount, idempotencyKey);
+        return true;
+    }
+
+    public String checkStatus(UUID idempotencyKey) {
+        return "SUCCESS";
     }
 }

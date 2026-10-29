@@ -19,7 +19,7 @@ public class SeatReservedConsumer {
 
         if ("ORPHANED_PAYMENT".equals(event.getStatus())) {
             log.warn("Initiating REFUND for orphaned payment on booking: {}", event.getBookingId());
-            // TODO: paymentService.refundPayment(event.getBookingId());
+            paymentService.refundPayment(event.getBookingId());
             return;
         }
 

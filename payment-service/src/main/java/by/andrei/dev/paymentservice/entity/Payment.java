@@ -28,8 +28,14 @@ public class Payment {
     @Column(nullable = false)
     private BigDecimal amount;
 
+    @Column(name = "session_id")
+    private UUID sessionId;
+
+    @Column(name = "seat_id")
+    private UUID seatId;
+
     @Column(nullable = false)
-    private String status; // SUCCESS, FAILED
+    private String status;
 
     @Column(name = "failure_reason")
     private String failureReason;

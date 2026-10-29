@@ -9,10 +9,14 @@ import by.andrei.dev.paymentservice.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -37,7 +41,7 @@ public class PaymentService {
                         log.warn("Pending payment for booking {} expired. Failing.", event.getBookingId());
                         existing.setStatus("FAILED");
                         existing.setFailureReason("Reservation expired during payment retry");
-                        saveOutboxEvent(existing, event);
+                        saveOutboxEvent(existing);
                         return null;
                     }
                     log.info("Resuming stuck PENDING payment for booking {}", event.getBookingId());
@@ -50,6 +54,8 @@ public class PaymentService {
             Payment newPayment = Payment.builder()
                     .bookingId(event.getBookingId())
                     .userId(event.getUserId())
+                    .sessionId(event.getSessionId())
+                    .seatId(event.getSeatId())
                     .amount(event.getPrice())
                     .status(isExpired ? "FAILED" : "PENDING")
                     .failureReason(isExpired ? "Reservation expired before payment started" : null)
@@ -59,18 +65,15 @@ public class PaymentService {
 
             if (isExpired) {
                 log.warn("Reservation {} expired. Failing payment immediately.", event.getBookingId());
-                saveOutboxEvent(newPayment, event);
+                saveOutboxEvent(newPayment);
             }
-
             return newPayment;
         });
 
-        if (payment == null || !"PENDING".equals(payment.getStatus())) {
-            return;
-        }
+        if (payment == null || !"PENDING".equals(payment.getStatus())) return;
 
         log.info("Calling PSP for booking {}...", event.getBookingId());
-        boolean isSuccess = paymentGateway.processPayment(payment.getAmount());
+        boolean isSuccess = paymentGateway.charge(payment.getAmount(), payment.getId());
 
         String finalStatus = isSuccess ? "SUCCESS" : "FAILED";
         String failureReason = isSuccess ? null : "Declined by bank or insufficient funds";
@@ -78,23 +81,64 @@ public class PaymentService {
         txTemplate.executeWithoutResult(status -> {
             Payment p = paymentRepository.findById(payment.getId())
                     .orElseThrow(() -> new IllegalStateException("Payment disappeared: " + payment.getId()));
-
             p.setStatus(finalStatus);
             p.setFailureReason(failureReason);
-
-            saveOutboxEvent(p, event);
+            saveOutboxEvent(p);
             log.info("Payment {} completed with status {}", p.getId(), finalStatus);
         });
     }
 
-    private void saveOutboxEvent(Payment payment, BookingStatusEvent eventContext) {
+    @Transactional
+    public void refundPayment(UUID bookingId) {
+        Payment payment = paymentRepository.findByBookingId(bookingId)
+                .orElseThrow(() -> new IllegalStateException("Payment not found for booking: " + bookingId));
+
+        if (!"SUCCESS".equals(payment.getStatus())) {
+            log.warn("Cannot refund payment {} with status {}", payment.getId(), payment.getStatus());
+            return;
+        }
+
+        log.info("Initiating refund for payment {} (booking {})", payment.getId(), bookingId);
+
+        boolean refundSuccess = paymentGateway.refund(payment.getAmount(), payment.getId());
+
+        if (refundSuccess) {
+            payment.setStatus("REFUNDED");
+            paymentRepository.save(payment);
+            saveOutboxEvent(payment);
+            log.info("Refund successful for payment {}", payment.getId());
+        } else {
+            log.error("CRITICAL: PSP refused refund for payment {}", payment.getId());
+        }
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    public void reconcilePendingPayments() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
+        List<Payment> stuckPayments = paymentRepository.findByStatusAndCreatedAtBefore("PENDING", threshold);
+
+        if (stuckPayments.isEmpty()) return;
+
+        for (Payment p : stuckPayments) {
+            log.warn("Reconciling stuck payment: {}", p.getId());
+            String pspStatus = paymentGateway.checkStatus(p.getId());
+
+            txTemplate.executeWithoutResult(status -> {
+                p.setStatus(pspStatus);
+                paymentRepository.save(p);
+                saveOutboxEvent(p);
+            });
+        }
+    }
+
+    private void saveOutboxEvent(Payment payment) {
         try {
             PaymentEvent paymentEvent = PaymentEvent.builder()
                     .paymentId(payment.getId())
                     .bookingId(payment.getBookingId())
                     .userId(payment.getUserId())
-                    .sessionId(eventContext.getSessionId())
-                    .seatId(eventContext.getSeatId())
+                    .sessionId(payment.getSessionId())
+                    .seatId(payment.getSeatId())
                     .amount(payment.getAmount())
                     .status(payment.getStatus())
                     .failureReason(payment.getFailureReason())
