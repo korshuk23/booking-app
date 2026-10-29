@@ -78,7 +78,6 @@ public class KeycloakIntegrationService {
         String usersUrl = serverUrl + "/admin/realms/" + realm + "/users";
 
         try {
-            // Безопасный вызов с URI-шаблонами (Spring безопасно экранирует спецсимволы вроде '+')
             List<Map<String, Object>> users = restClient.get()
                     .uri(usersUrl + "?username={username}&exact=true", identifier)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -86,17 +85,16 @@ public class KeycloakIntegrationService {
                     .body(List.class);
 
             if (users != null && !users.isEmpty()) {
-                log.debug("User '{}' already exists in Keycloak. Skipping setup.", identifier);
                 return;
             }
 
-            log.info("User '{}' not found in Keycloak. Creating...", identifier);
+            log.info("User '{}' not found in Keycloak. Creating with credentials...", identifier);
 
             String email = identifier.contains("@") ? identifier : identifier + "@cinema.dev";
             String firstName = identifier.contains("@") ? identifier.split("@")[0] : identifier;
             String lastName = "User";
 
-            var createResponse = restClient.post()
+            restClient.post()
                     .uri(usersUrl)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -107,39 +105,17 @@ public class KeycloakIntegrationService {
                             "lastName", lastName,
                             "enabled", true,
                             "emailVerified", true,
-                            "requiredActions", List.of()
+                            "requiredActions", List.of(),
+                            "credentials", List.of(Map.of(
+                                    "type", "password",
+                                    "value", hmacPassword,
+                                    "temporary", false
+                            ))
                     ))
                     .retrieve()
                     .toBodilessEntity();
 
-            var location = createResponse.getHeaders().getLocation();
-            String userId;
-            if (location != null) {
-                String path = location.getPath();
-                userId = path.substring(path.lastIndexOf('/') + 1);
-            } else {
-                List<Map<String, Object>> created = restClient.get()
-                        .uri(usersUrl + "?username={username}&exact=true", identifier)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                        .retrieve()
-                        .body(List.class);
-                userId = (String) created.get(0).get("id");
-            }
-
-            // Устанавливаем пароль ЕДИНОЖДЫ при создании аккаунта
-            restClient.put()
-                    .uri(usersUrl + "/{userId}/reset-password", userId)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "type", "password",
-                            "value", hmacPassword,
-                            "temporary", false
-                    ))
-                    .retrieve()
-                    .toBodilessEntity();
-
-            log.info("User '{}' successfully registered and provisioned in Keycloak", identifier);
+            log.info("User '{}' successfully registered atomically in Keycloak", identifier);
 
         } catch (Exception e) {
             log.error("Error setting up user in Keycloak: {}", e.getMessage(), e);
@@ -169,9 +145,13 @@ public class KeycloakIntegrationService {
                     .body(Map.class);
 
             return mapTokenResponse(response);
+        } catch (org.springframework.web.client.HttpClientErrorException.BadRequest |
+                 org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            log.warn("Invalid credentials for user {}: {}", identifier, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         } catch (Exception e) {
-            log.error("Failed to get tokens from Keycloak for user {}", identifier, e);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization server error");
+            log.error("Keycloak is unavailable or failed: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Identity Provider error");
         }
     }
 

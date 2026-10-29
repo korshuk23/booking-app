@@ -254,22 +254,28 @@ public class BookingConsumerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Сценарий 6: Таймаут брони — зависшие брони старше 15 минут автоматически сбрасываются в FREE")
+    @DisplayName("Сценарий 6: Таймаут брони — зависшие брони старше timeout сбрасываются в FREE с событием CANCELLED")
     void shouldReleaseExpiredReservationsAutomatically() {
-        // Given: кресло было забронировано 20 минут назад (просрочено)
+        UUID bookingId = UUID.randomUUID();
         Seat expiredSeat = seatRepository.findById(testSeatId).orElseThrow();
         expiredSeat.setStatus(Seat.SeatStatus.RESERVED);
+        expiredSeat.setBookingId(bookingId);
         expiredSeat.setReservedAt(LocalDateTime.now().minusMinutes(20));
+        expiredSeat.setExpiresAt(LocalDateTime.now().minusMinutes(5));
         seatRepository.saveAndFlush(expiredSeat);
 
-        // When: срабатывает фоновый шедулер очистки
         seatReleaseJob.releaseExpiredReservations();
 
-        // Then: кресло снова свободно для покупки!
         Seat releasedSeat = seatRepository.findById(testSeatId).orElseThrow();
         assertThat(releasedSeat.getStatus()).isEqualTo(Seat.SeatStatus.FREE);
         assertThat(releasedSeat.getReservedAt()).isNull();
+        assertThat(releasedSeat.getExpiresAt()).isNull();
+
+        List<OutboxEvent> outbox = outboxRepository.findAll();
+        assertThat(outbox).hasSize(1);
+        assertThat(outbox.get(0).getEventType()).isEqualTo("BOOKING_CANCELLED");
     }
+
 
     @Test
     @DisplayName("Сценарий 7: Несуществующее кресло — корректно формирует REJECTED, сервис не падает")
@@ -320,5 +326,28 @@ public class BookingConsumerIntegrationTest {
         bookingConsumer.consume(event);
 
         assertThat(outboxRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Сценарий 10 (Главная гонка): Место освобождено по таймауту, приходит SUCCESS — генерируется ORPHANED_PAYMENT")
+    void shouldEmitOrphanedPaymentWhenSeatAlreadyReleased() {
+        UUID bookingId = UUID.randomUUID();
+
+        PaymentEvent successPayment = PaymentEvent.builder()
+                .bookingId(bookingId)
+                .seatId(testSeatId)
+                .sessionId(testSessionId)
+                .status("SUCCESS")
+                .amount(BigDecimal.valueOf(15.00))
+                .build();
+
+        bookingConsumer.handlePaymentCompensation(successPayment);
+
+        Seat seat = seatRepository.findById(testSeatId).orElseThrow();
+        assertThat(seat.getStatus()).isEqualTo(Seat.SeatStatus.FREE); // Место не занято!
+
+        List<OutboxEvent> outbox = outboxRepository.findAll();
+        assertThat(outbox).hasSize(1);
+        assertThat(outbox.get(0).getEventType()).isEqualTo("ORPHANED_PAYMENT");
     }
 }

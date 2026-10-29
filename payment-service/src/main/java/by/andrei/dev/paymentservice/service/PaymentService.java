@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -73,7 +74,9 @@ public class PaymentService {
         if (payment == null || !"PENDING".equals(payment.getStatus())) return;
 
         log.info("Calling PSP for booking {}...", event.getBookingId());
-        boolean isSuccess = paymentGateway.charge(payment.getAmount(), payment.getId());
+
+        UUID chargeKey = UUID.nameUUIDFromBytes(("charge:" + payment.getId()).getBytes(StandardCharsets.UTF_8));
+        boolean isSuccess = paymentGateway.charge(payment.getAmount(), chargeKey);
 
         String finalStatus = isSuccess ? "SUCCESS" : "FAILED";
         String failureReason = isSuccess ? null : "Declined by bank or insufficient funds";
@@ -88,47 +91,67 @@ public class PaymentService {
         });
     }
 
-    @Transactional
     public void refundPayment(UUID bookingId) {
-        Payment payment = paymentRepository.findByBookingId(bookingId)
-                .orElseThrow(() -> new IllegalStateException("Payment not found for booking: " + bookingId));
+        Payment payment = txTemplate.execute(status -> {
+            Payment p = paymentRepository.findByBookingId(bookingId)
+                    .orElseThrow(() -> new IllegalStateException("Payment not found for booking: " + bookingId));
 
-        if (!"SUCCESS".equals(payment.getStatus())) {
-            log.warn("Cannot refund payment {} with status {}", payment.getId(), payment.getStatus());
-            return;
-        }
+            if (!"SUCCESS".equals(p.getStatus())) {
+                log.warn("Cannot refund payment {} with status {}", p.getId(), p.getStatus());
+                return null;
+            }
+            p.setStatus("REFUND_PENDING");
+            return paymentRepository.save(p);
+        });
 
-        log.info("Initiating refund for payment {} (booking {})", payment.getId(), bookingId);
+        if (payment == null) return;
 
-        boolean refundSuccess = paymentGateway.refund(payment.getAmount(), payment.getId());
+        log.info("Calling PSP for refund on payment {}", payment.getId());
 
-        if (refundSuccess) {
-            payment.setStatus("REFUNDED");
-            paymentRepository.save(payment);
-            saveOutboxEvent(payment);
-            log.info("Refund successful for payment {}", payment.getId());
-        } else {
-            log.error("CRITICAL: PSP refused refund for payment {}", payment.getId());
-        }
+        UUID refundKey = UUID.nameUUIDFromBytes(("refund:" + payment.getId()).getBytes(StandardCharsets.UTF_8));
+        boolean refundSuccess = paymentGateway.refund(payment.getAmount(), refundKey);
+
+        txTemplate.executeWithoutResult(status -> {
+            Payment p = paymentRepository.findById(payment.getId()).orElseThrow();
+            if (refundSuccess) {
+                p.setStatus("REFUNDED");
+                saveOutboxEvent(p);
+                log.info("Refund successful for payment {}", p.getId());
+            } else {
+                p.setStatus("REFUND_FAILED");
+                p.setFailureReason("PSP declined refund");
+                log.error("CRITICAL: PSP refused refund for payment {}. Flagged as REFUND_FAILED", p.getId());
+            }
+            paymentRepository.save(p);
+        });
     }
 
     @Scheduled(fixedDelay = 60000)
     public void reconcilePendingPayments() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
-        List<Payment> stuckPayments = paymentRepository.findByStatusAndCreatedAtBefore("PENDING", threshold);
 
-        if (stuckPayments.isEmpty()) return;
+        txTemplate.executeWithoutResult(txStatus -> {
+            List<Payment> stuckPayments = paymentRepository.findStuckPendingForUpdate(threshold);
+            if (stuckPayments.isEmpty()) return;
 
-        for (Payment p : stuckPayments) {
-            log.warn("Reconciling stuck payment: {}", p.getId());
-            String pspStatus = paymentGateway.checkStatus(p.getId());
+            for (Payment p : stuckPayments) {
+                log.warn("Reconciling stuck payment: {}", p.getId());
+                UUID chargeKey = UUID.nameUUIDFromBytes(("charge:" + p.getId()).getBytes(StandardCharsets.UTF_8));
+                String pspStatus = paymentGateway.checkStatus(chargeKey);
 
-            txTemplate.executeWithoutResult(status -> {
-                p.setStatus(pspStatus);
-                paymentRepository.save(p);
-                saveOutboxEvent(p);
-            });
-        }
+                if ("SUCCESS".equals(pspStatus) || "FAILED".equals(pspStatus)) {
+                    p.setStatus(pspStatus);
+                    if ("FAILED".equals(pspStatus)) {
+                        p.setFailureReason("Failed on PSP side during reconciliation");
+                    }
+                    paymentRepository.save(p);
+                    saveOutboxEvent(p);
+                    log.info("Payment {} reconciled to {}", p.getId(), pspStatus);
+                } else {
+                    log.debug("PSP reports payment {} is still pending/processing. Will retry later.", p.getId());
+                }
+            }
+        });
     }
 
     private void saveOutboxEvent(Payment payment) {

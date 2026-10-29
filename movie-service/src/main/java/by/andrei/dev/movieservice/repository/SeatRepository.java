@@ -26,7 +26,7 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                SET status = 'RESERVED',
                    booking_id = :bookingId,
                    reserved_at = :now,
-                   expired_at = :expiresAt,
+                   expires_at = :expiresAt,
                    version = version + 1
              WHERE id = :seatId
                AND session_id = :sessionId

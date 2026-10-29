@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -36,11 +37,19 @@ class BookingServiceIntegrationTest {
             .withUsername("postgres")
             .withPassword("password");
 
+    @Container
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
+            .withExposedPorts(6379);
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+
         registry.add("eureka.client.enabled", () -> "false");
         registry.add("outbox.publisher.delay", () -> "3600000");
     }
@@ -81,21 +90,19 @@ class BookingServiceIntegrationTest {
         Mockito.when(movieClient.getMovieInfo(any())).thenReturn(mockMovie);
 
         // When
-        Booking createdBooking = bookingService.createBooking(userId, movieId, sessionId,seatId);
+        Booking createdBooking = bookingService.createBooking(userId, movieId, sessionId, seatId);
 
         // Then
         assertThat(createdBooking.getId()).isNotNull();
         assertThat(createdBooking.getStatus()).isEqualTo(Booking.BookingStatus.PENDING);
 
-        // Проверяем, что запись появилась в реальной PostgreSQL
         List<Booking> allBookings = bookingRepository.findAll();
         assertThat(allBookings).hasSize(1);
         assertThat(allBookings.get(0).getMovieId()).isEqualTo(movieId);
 
-        // Проверяем Transactional Outbox: событие создано и готово к отправке в Kafka
         List<OutboxEvent> outboxEvents = outboxRepository.findAll();
         assertThat(outboxEvents).hasSize(1);
-        assertThat(outboxEvents.get(0).getStatus()).isEqualTo(Booking.BookingStatus.PENDING);
+        assertThat(outboxEvents.get(0).getStatus()).isEqualTo("PENDING");
         assertThat(outboxEvents.get(0).getAggregateId()).isEqualTo(createdBooking.getId());
     }
 }

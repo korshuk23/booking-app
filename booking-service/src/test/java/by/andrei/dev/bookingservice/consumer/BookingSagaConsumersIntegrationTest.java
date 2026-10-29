@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -33,11 +34,19 @@ class BookingSagaConsumersIntegrationTest {
             .withUsername("postgres")
             .withPassword("password");
 
+    @Container
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
+            .withExposedPorts(6379);
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+
         registry.add("eureka.client.enabled", () -> "false");
         registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
         registry.add("outbox.publisher.delay", () -> "3600000");
@@ -62,6 +71,7 @@ class BookingSagaConsumersIntegrationTest {
     @BeforeEach
     void setUp() {
         bookingRepository.deleteAll();
+        testUserId = UUID.randomUUID();
 
         Booking booking = bookingRepository.save(Booking.builder()
                 .userId(testUserId)
@@ -76,15 +86,15 @@ class BookingSagaConsumersIntegrationTest {
     }
 
     @Test
-    @DisplayName("Сценарий 1: Успешная оплата финализирует заказ в статус CONFIRMED")
-    void shouldFinalizeBookingToConfirmedOnPaymentSuccess() {
-        PaymentEvent successEvent = PaymentEvent.builder()
+    @DisplayName("Сценарий 1: Movie-Service финализирует заказ в статус CONFIRMED (SEAT_BOOKED)")
+    void shouldFinalizeBookingToConfirmedOnMovieSuccess() {
+        BookingStatusEvent seatBookedEvent = BookingStatusEvent.builder()
                 .bookingId(testBookingId)
-                .amount(BigDecimal.valueOf(20.00))
-                .status("SUCCESS")
+                .status("SEAT_BOOKED")
+                .message("Seat confirmed")
                 .build();
 
-        paymentStatusConsumer.handlePaymentStatus(successEvent);
+        movieStatusConsumer.handleStatusUpdate(seatBookedEvent);
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
         assertThat(updatedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
@@ -122,17 +132,17 @@ class BookingSagaConsumersIntegrationTest {
     }
 
     @Test
-    @DisplayName("Сценарий 4: SSE Подписка — клиент подписывается и получает уведомление без ошибок")
-    void shouldNotifySseSubscriberOnPaymentSuccess() {
+    @DisplayName("Сценарий 4: SSE Подписка — клиент подписывается и получает уведомление")
+    void shouldNotifySseSubscriberOnConfirmation() {
         SseEmitter emitter = notificationService.subscribe(testBookingId, testUserId);
         assertThat(emitter).isNotNull();
 
-        PaymentEvent successEvent = PaymentEvent.builder()
+        BookingStatusEvent confirmedEvent = BookingStatusEvent.builder()
                 .bookingId(testBookingId)
-                .status("SUCCESS")
+                .status("CONFIRMED")
                 .build();
 
-        assertThatCode(() -> paymentStatusConsumer.handlePaymentStatus(successEvent))
+        assertThatCode(() -> movieStatusConsumer.handleStatusUpdate(confirmedEvent))
                 .doesNotThrowAnyException();
 
         Booking updatedBooking = bookingRepository.findById(testBookingId).orElseThrow();
@@ -140,18 +150,14 @@ class BookingSagaConsumersIntegrationTest {
     }
 
     @Test
-    @DisplayName("Сценарий 5 (Гонка Kafka): PAYMENT_SUCCESS пришел раньше SEATS_RESERVED — заказ не должен застрять")
-    void shouldConfirmBookingEvenIfPaymentArrivesBeforeSeatsReserved() {
-        PaymentEvent paymentSuccess = PaymentEvent.builder()
+    @DisplayName("Сценарий 5 (Гонка Kafka): SEATS_RESERVED пришел ПОСЛЕ CONFIRMED — заказ не должен откатиться")
+    void shouldStayConfirmedIfSeatsReservedArrivesLate() {
+        BookingStatusEvent confirmedEvent = BookingStatusEvent.builder()
                 .bookingId(testBookingId)
-                .amount(BigDecimal.valueOf(20.00))
-                .status("SUCCESS")
+                .status("CONFIRMED")
                 .build();
 
-        paymentStatusConsumer.handlePaymentStatus(paymentSuccess);
-
-        Booking confirmedBooking = bookingRepository.findById(testBookingId).orElseThrow();
-        assertThat(confirmedBooking.getStatus()).isEqualTo(Booking.BookingStatus.CONFIRMED);
+        movieStatusConsumer.handleStatusUpdate(confirmedEvent);
 
         BookingStatusEvent lateSeatsReserved = BookingStatusEvent.builder()
                 .bookingId(testBookingId)

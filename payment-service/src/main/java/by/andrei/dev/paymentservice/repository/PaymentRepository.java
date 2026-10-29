@@ -2,6 +2,8 @@ package by.andrei.dev.paymentservice.repository;
 
 import by.andrei.dev.paymentservice.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,6 +15,7 @@ import java.util.UUID;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByBookingId(UUID bookingId);
 
-    List<Payment> findByStatusAndCreatedAtBefore(String status, LocalDateTime time);
-
+    @Query(value = "SELECT * FROM payments WHERE status = 'PENDING' AND created_at < :threshold " +
+            "ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    List<Payment> findStuckPendingForUpdate(@Param("threshold") LocalDateTime threshold);
 }
