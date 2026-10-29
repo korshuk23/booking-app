@@ -71,4 +71,20 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ProblemDetail handleConflict(org.springframework.dao.DataIntegrityViolationException ex) {
+        String cause = String.valueOf(ex.getMostSpecificCause().getMessage());
+
+        if (cause.contains("uq_active_booking_per_seat")) {
+            log.warn("Double booking attempt intercepted by DB constraint");
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Это место уже бронируется кем-то другим.");
+            problem.setTitle("Seat Conflict");
+            problem.setProperty("timestamp", Instant.now());
+            return problem;
+        }
+
+        log.error("Database integrity violation: {}", cause);
+        throw ex;
+    }
 }

@@ -12,17 +12,13 @@ import java.util.UUID;
 
 public interface SeatRepository extends JpaRepository<Seat, UUID> {
 
-    List<Seat> findByStatusAndReservedAtBefore(Seat.SeatStatus status, LocalDateTime time);
+    interface ExpiredSeat {
+        UUID getSeatId();
 
-    @Modifying
-    @Query("UPDATE Seat s SET s.status = 'FREE', s.bookingId = null, s.reservedAt = null, s.expiresAt = null " +
-            "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
-    int releaseSeatIfReservedByBooking(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
+        UUID getSessionId();
 
-    @Modifying
-    @Query("UPDATE Seat s SET s.status = 'BOOKED', s.expiresAt = null " +
-            "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
-    int finalizeSeatToBooked(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
+        UUID getBookingId();
+    }
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
@@ -42,11 +38,30 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
                    @Param("now") LocalDateTime now,
                    @Param("expiresAt") LocalDateTime expiresAt);
 
+    @Modifying
+    @Query("UPDATE Seat s SET s.status = 'BOOKED', s.expiresAt = null " +
+            "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
+    int finalizeSeatToBooked(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
+
+    @Modifying
+    @Query("UPDATE Seat s SET s.status = 'FREE', s.bookingId = null, s.reservedAt = null, s.expiresAt = null " +
+            "WHERE s.id = :seatId AND s.bookingId = :bookingId AND s.status = 'RESERVED'")
+    int releaseSeatIfReservedByBooking(@Param("seatId") UUID seatId, @Param("bookingId") UUID bookingId);
+
+
+    // Решение с CTE: берем старые данные, лочим их, обновляем и возвращаем то, что было
     @Query(value = """
-            UPDATE seats 
-               SET status = 'FREE', booking_id = NULL, reserved_at = NULL, expires_at = NULL 
-             WHERE status = 'RESERVED' AND expires_at < :now
-             RETURNING *
+            WITH expired AS (
+                SELECT id, session_id, booking_id FROM seats
+                 WHERE status = 'RESERVED' AND expires_at < :now
+                   FOR UPDATE SKIP LOCKED
+            )
+            UPDATE seats s
+               SET status = 'FREE', booking_id = NULL, reserved_at = NULL,
+                   expires_at = NULL, version = s.version + 1
+              FROM expired e
+             WHERE s.id = e.id
+            RETURNING e.id AS "seatId", e.session_id AS "sessionId", e.booking_id AS "bookingId"
             """, nativeQuery = true)
-    List<Seat> releaseExpired(@Param("now") LocalDateTime now);
+    List<ExpiredSeat> releaseExpired(@Param("now") LocalDateTime now);
 }

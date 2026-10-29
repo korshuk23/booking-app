@@ -2,7 +2,6 @@ package by.andrei.dev.movieservice.service;
 
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
-import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
@@ -16,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -34,7 +32,7 @@ public class SeatReleaseJob {
     @Scheduled(fixedRateString = "${seat.release.job-rate-ms:60000}")
     @Transactional
     public void releaseExpiredReservations() {
-        List<Seat> expiredSeats = seatRepository.releaseExpired(LocalDateTime.now());
+        List<SeatRepository.ExpiredSeat> expiredSeats = seatRepository.releaseExpired(LocalDateTime.now());
 
         if (expiredSeats.isEmpty()) {
             return;
@@ -42,36 +40,35 @@ public class SeatReleaseJob {
 
         log.info("Found {} expired seat reservations. Releasing...", expiredSeats.size());
 
-        for (Seat seat : expiredSeats) {
+        for (SeatRepository.ExpiredSeat seat : expiredSeats) {
             movieSessionRepository.incrementAvailableSeats(seat.getSessionId());
-
             if (seat.getBookingId() != null) {
-                emitCancellationOutboxEvent(seat.getBookingId(), seat);
+                emitCancellationOutboxEvent(seat);
             }
         }
     }
 
-    private void emitCancellationOutboxEvent(UUID bookingId, Seat seat) {
+    private void emitCancellationOutboxEvent(SeatRepository.ExpiredSeat seat) {
         try {
             BookingStatusEvent event = BookingStatusEvent.builder()
-                    .bookingId(bookingId)
+                    .bookingId(seat.getBookingId())
                     .sessionId(seat.getSessionId())
-                    .seatId(seat.getId())
+                    .seatId(seat.getSeatId())
                     .status("CANCELLED")
                     .message("Reservation expired due to payment timeout")
                     .build();
 
             OutboxEvent outboxEvent = OutboxEvent.builder()
                     .aggregateType("BOOKING_STATUS")
-                    .aggregateId(bookingId)
+                    .aggregateId(seat.getBookingId())
                     .eventType("BOOKING_CANCELLED")
                     .payload(objectMapper.writeValueAsString(event))
                     .build();
 
             outboxRepository.save(outboxEvent);
-            log.info("Outbox CANCELLED event registered for expired booking: {}", bookingId);
+            log.info("Outbox CANCELLED event registered for expired booking: {}", seat.getBookingId());
         } catch (Exception e) {
-            log.error("Failed to serialize cancellation outbox event for booking {}", bookingId, e);
+            log.error("Failed to serialize cancellation outbox event for booking {}", seat.getBookingId(), e);
         }
     }
 }
