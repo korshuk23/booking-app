@@ -106,9 +106,9 @@ services:
     <<: *common-env
     build: ./auth-service
     container_name: auth-service
-    ports:
-      - "8081:8081"
-      - "9091:9091"
+    expose:
+      - "8081"
+      - "9091"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -138,9 +138,9 @@ services:
     <<: *common-env
     build: ./movie-service
     container_name: movie-service
-    ports:
-      - "8083:8083"
-      - "9093:9093"
+    expose:
+      - "8083"
+      - "9093"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -170,8 +170,8 @@ services:
     <<: *common-env
     build: ./booking-service
     container_name: booking-service
-    ports:
-      - "8084:8084"
+    expose:
+      - "8084"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -199,8 +199,8 @@ services:
     <<: *common-env
     build: ./payment-service
     container_name: payment-service
-    ports:
-      - "8085:8085"
+    expose:
+      - "8085"
     depends_on:
       postgres-db:
         condition: service_healthy

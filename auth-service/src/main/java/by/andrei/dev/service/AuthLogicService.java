@@ -7,11 +7,13 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Locale;
 
 @Service
@@ -21,6 +23,7 @@ public class AuthLogicService {
     private final UserRepository userRepository;
     private final OtpRepository otpRepository;
     private final KeycloakIntegrationService keycloakIntegrationService;
+    private final StringRedisTemplate redisTemplate;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -46,13 +49,25 @@ public class AuthLogicService {
 
         if (logOtp) {
             log.warn("[DEV MODE ONLY] OTP for {}: {}", identifier, code);
-        }else{
+        } else {
             log.info("OTP successfully generated and dispatched for: {}", identifier);
         }
     }
 
     public String verifyOtpAndGenerateToken(String rawIdentifier, String code) {
         String identifier = normalize(rawIdentifier);
+
+        String attemptKey = "otp:attempts:" + identifier;
+        Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+
+        if (attempts != null && attempts == 1) {
+            redisTemplate.expire(attemptKey, Duration.ofMinutes(5));
+        }
+        if (attempts != null && attempts > 5) {
+            log.warn("Brute-force attempt detected for: {}", identifier);
+            throw new RuntimeException("To many attempts. Try later.");
+        }
+
         OtpCode savedOtp = otpRepository.findById(identifier)
                 .orElseThrow(() -> new RuntimeException("OTP code not found or expired"));
 
@@ -64,15 +79,21 @@ public class AuthLogicService {
         }
 
         otpRepository.delete(savedOtp);
+        redisTemplate.delete(attemptKey);
 
-        userRepository.findByIdentifier(identifier)
+        User user = userRepository.findByIdentifier(identifier)
                 .orElseGet(() -> userRepository.save(User.builder()
                         .identifier(identifier)
                         .role("USER")
                         .build()));
 
+        if (user.isBlocked()) {
+            log.warn("Blocked user {} attempted to login", identifier);
+            throw new RuntimeException("Account blocked");
+        }
+
         String hmacPassword = keycloakIntegrationService.generateHmacPassword(identifier);
-        keycloakIntegrationService.ensureUserExists(identifier,hmacPassword);
+        keycloakIntegrationService.ensureUserExists(identifier, hmacPassword);
 
         return keycloakIntegrationService.getTokenForUser(identifier, hmacPassword);
     }

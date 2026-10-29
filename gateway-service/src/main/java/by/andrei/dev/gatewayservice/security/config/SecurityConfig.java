@@ -10,10 +10,7 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
-import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
-import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -30,17 +27,14 @@ public class SecurityConfig {
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        // 1. Публичные эндпоинты
                         .pathMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**").permitAll()
                         .pathMatchers("/api/v1/auth/**").permitAll()
 
-                        // 2. Каталог фильмов
                         .pathMatchers(HttpMethod.GET, "/api/v1/movies", "/api/v1/movies/**").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/v1/movies", "/api/v1/movies/**").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.PATCH, "/api/v1/movies", "/api/v1/movies/**").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.DELETE, "/api/v1/movies", "/api/v1/movies/**").hasRole("ADMIN")
 
-                        // 3. Бронирование доступно любому авторизованному пользователю
                         .pathMatchers("/api/v1/bookings", "/api/v1/bookings/**").authenticated()
 
                         .anyExchange().authenticated()
@@ -54,19 +48,18 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Создаем декодер, который проверяет криптографическую подпись по JWKS,
-     * проверяет время жизни токена (timestamp), но НЕ падает из-за разницы localhost vs keycloak-cinema
-     */
     @Bean
     public ReactiveJwtDecoder jwtDecoder() {
         NimbusReactiveJwtDecoder jwtDecoder = NimbusReactiveJwtDecoder.withJwkSetUri(this.jwkSetUri).build();
 
-        // Валидируем только срок действия токена (exp/nbf), пропуская строгую проверку хоста iss
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator()
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer("http://keycloak-cinema:8080/realms/teacinema");
+
+        OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(
+                withIssuer,
+                new JwtClaimValidator<String>("azp", azp -> azp != null && azp.equals("teacinema-backend-client"))
         );
-        jwtDecoder.setJwtValidator(validator);
+
+        jwtDecoder.setJwtValidator(withAudience);
 
         return jwtDecoder;
     }
