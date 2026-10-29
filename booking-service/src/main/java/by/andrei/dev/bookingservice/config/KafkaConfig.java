@@ -67,7 +67,7 @@ public class KafkaConfig {
     public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
         // Если сообщение "не переваривается", отправляем его в топик с постфиксом .dlq (например, payment-events.dlq)
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
-                (record, exception) -> new TopicPartition(record.topic() + ".dlq", record.partition()));
+                (record, exception) -> new TopicPartition(record.topic() + ".dlq", -1));
 
         // Настройка ретраев: 3 попытки, 1 секунда между попытками
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));

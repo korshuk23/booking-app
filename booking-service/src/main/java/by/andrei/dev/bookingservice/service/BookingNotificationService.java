@@ -7,7 +7,6 @@ import by.andrei.dev.bookingservice.repository.BookingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 @Service
@@ -62,18 +60,15 @@ public class BookingNotificationService {
     }
 
     public SseEmitter subscribe(UUID bookingId, UUID requestingUserId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
-
-        if (!booking.getUserId().equals(requestingUserId)) {
-            log.warn("Access denied: User {} tried to subscribe to booking {}", requestingUserId, bookingId);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied: You don't own this booking");
-        }
-
         SseEmitter emitter = new SseEmitter(sseTimeoutMs);
         CopyOnWriteArraySet<SseEmitter> emitters = emitterCache.get(bookingId, k -> new CopyOnWriteArraySet<>());
         emitters.add(emitter);
 
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> {
+                    emitters.remove(emitter);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found");
+                });
 
         Runnable removeCallback = () -> emitters.remove(emitter);
         emitter.onCompletion(removeCallback);

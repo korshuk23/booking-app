@@ -34,7 +34,6 @@ public class KafkaConfig {
     @Value("${kafka.listener.concurrency:3}")
     private int listenerConcurrency;
 
-    // --- CONSUMER CONFIG ---
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -76,7 +75,7 @@ public class KafkaConfig {
     @Bean
     public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> template) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
-                (record, exception) -> new TopicPartition(record.topic() + ".dlq", record.partition()));
+                (record, exception) -> new TopicPartition(record.topic() + ".dlq", -1));
 
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
     }

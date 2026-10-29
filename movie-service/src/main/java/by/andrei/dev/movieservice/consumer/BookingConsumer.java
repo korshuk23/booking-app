@@ -78,6 +78,7 @@ public class BookingConsumer {
             outboxRepository.save(outboxEvent);
         } catch (Exception ex) {
             log.error("Failed to serialize compensation event", ex);
+            throw new RuntimeException("Serialization failed, rolling back", ex);
         }
     }
 }
