@@ -97,7 +97,7 @@ public class AuthLogicService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired code");
         }
 
-        if (!Boolean.TRUE.equals(redisTemplate.delete(key))) {
+        if (!redisTemplate.delete(key)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired code");
         }
 
