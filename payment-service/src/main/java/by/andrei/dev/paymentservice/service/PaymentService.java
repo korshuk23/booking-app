@@ -27,12 +27,20 @@ public class PaymentService {
 
     public void processPaymentEvent(BookingStatusEvent event) {
         Payment payment = txTemplate.execute(status -> {
-            if (paymentRepository.findByBookingId(event.getBookingId()).isPresent()) {
-                log.warn("Payment for booking {} already exists. Skipping.", event.getBookingId());
+            var existingPaymentOpt = paymentRepository.findByBookingId(event.getBookingId());
+
+            if (existingPaymentOpt.isPresent()) {
+                Payment existing = existingPaymentOpt.get();
+                if ("PENDING".equals(existing.getStatus())) {
+                    log.info("Resuming stuck PENDING payment for booking {}", event.getBookingId());
+                    return existing;
+                }
+                log.warn("Payment for booking {} already final. Skipping.", event.getBookingId());
                 return null;
             }
 
-            boolean isExpired = event.getExpiresAt() != null && event.getExpiresAt().isBefore(LocalDateTime.now());
+
+            boolean isExpired = event.getExpiresAt() != null && event.getExpiresAt().isBefore(LocalDateTime.now().plusSeconds(30));
 
             Payment newPayment = Payment.builder()
                     .bookingId(event.getBookingId())

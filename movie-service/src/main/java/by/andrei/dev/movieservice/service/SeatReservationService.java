@@ -39,7 +39,7 @@ public class SeatReservationService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expiresAt = now.plusMinutes(15);
+        LocalDateTime expiresAt = now.plusMinutes(timeoutMinutes);
 
         int reserved = seatRepository.tryReserve(
                 event.getSeatId(), event.getSessionId(), event.getBookingId(), now, expiresAt);

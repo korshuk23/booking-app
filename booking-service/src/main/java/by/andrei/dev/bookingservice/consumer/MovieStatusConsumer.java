@@ -24,25 +24,36 @@ public class MovieStatusConsumer {
 
         bookingRepository.findById(event.getBookingId()).ifPresentOrElse(booking -> {
             try {
-                Booking.BookingStatus targetStatus = Booking.BookingStatus.valueOf(event.getStatus());
+                Booking.BookingStatus before = booking.getStatus();
+                Booking.BookingStatus target;
 
-                booking.transitionTo(targetStatus);
+                switch (event.getStatus()) {
+                    case "ORPHANED_PAYMENT":
+                    case "CANCELLED":
+                    case "REJECTED":
+                        target = Booking.BookingStatus.CANCELLED;
+                        break;
+                    case "SEAT_BOOKED":
+                    case "CONFIRMED":
+                        target = Booking.BookingStatus.CONFIRMED;
+                        break;
+                    default:
+                        target = Booking.BookingStatus.valueOf(event.getStatus());
+                }
+
+                booking.transitionTo(target);
                 bookingRepository.save(booking);
 
-                log.info("Booking {} transitioned to {}", booking.getId(), booking.getStatus());
-
-                if (targetStatus == Booking.BookingStatus.REJECTED || targetStatus == Booking.BookingStatus.CANCELLED) {
+                if (booking.getStatus() != before) {
                     notificationService.sendBookingUpdateAfterCommit(
-                            booking.getId(),
-                            targetStatus.name(),
-                            event.getMessage() != null ? event.getMessage() : "Booking rejected by cinema"
+                            booking.getId(), target.name(), event.getMessage() != null ? event.getMessage() : "Status updated"
                     );
                 }
             } catch (IllegalArgumentException ex) {
                 log.error("Unknown booking status received from Kafka: {}", event.getStatus());
             } catch (IllegalStateException ex) {
-                log.warn("Ignored conflicting movie status event for booking {}: {}", event.getBookingId(), ex.getMessage());
+                log.warn("Ignored conflicting movie status event for booking {}", event.getBookingId());
             }
-        }, () -> log.error("Booking not found for movie status event: {}", event.getBookingId()));
+        }, () -> log.error("Booking not found: {}", event.getBookingId()));
     }
 }

@@ -21,24 +21,16 @@ public class PaymentStatusConsumer {
     @KafkaListener(topics = "payment-events", groupId = "booking-payment-group")
     @Transactional
     public void handlePaymentStatus(PaymentEvent event) {
-        log.info("Received payment status for booking {}: {}", event.getBookingId(), event.getStatus());
-
+        if (!"FAILED".equals(event.getStatus())) {
+            log.info("Payment {} for booking {}: waiting for movie-service confirmation", event.getStatus(), event.getBookingId());
+            return;
+        }
         bookingRepository.findById(event.getBookingId()).ifPresentOrElse(booking -> {
             try {
-                Booking.BookingStatus targetStatus = "SUCCESS".equals(event.getStatus())
-                        ? Booking.BookingStatus.CONFIRMED
-                        : Booking.BookingStatus.CANCELLED;
-
-                booking.transitionTo(targetStatus);
+                booking.transitionTo(Booking.BookingStatus.CANCELLED);
                 bookingRepository.save(booking);
-
-                log.info("Booking {} successfully transitioned to {}", booking.getId(), booking.getStatus());
-
                 notificationService.sendBookingUpdateAfterCommit(
-                        booking.getId(),
-                        booking.getStatus().name(),
-                        "SUCCESS".equals(event.getStatus()) ? "Payment confirmed! Ticket issued." : event.getFailureReason()
-                );
+                        booking.getId(), "CANCELLED", event.getFailureReason());
             } catch (IllegalStateException ex) {
                 log.warn("Ignored out-of-order payment event for booking {}: {}", event.getBookingId(), ex.getMessage());
             }
