@@ -22,7 +22,6 @@ import java.util.Locale;
 @Slf4j
 public class AuthLogicService {
     private final UserRepository userRepository;
-    private final OtpRepository otpRepository;
     private final KeycloakIntegrationService keycloakIntegrationService;
     private final StringRedisTemplate redisTemplate;
 
