@@ -20,6 +20,8 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: http://keycloak-cinema:8080/realms/teacinema/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/teacinema}
+
   cloud:
     gateway:
       routes:
