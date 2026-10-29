@@ -43,7 +43,7 @@
       "credentials": [
         {
           "type": "password",
-          "value": "admin-secure-password-123",
+          "value": "${KEYCLOAK_CINEMA_ADMIN_PASSWORD}",
           "temporary": false
         }
       ],

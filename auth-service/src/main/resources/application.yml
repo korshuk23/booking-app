@@ -54,10 +54,10 @@ keycloak:
   server-url: http://${KEYCLOAK_HOST:keycloak-cinema}:8080
   realm: teacinema
   client-id: teacinema-backend-client
-  client-secret: ${KEYCLOAK_CLIENT_SECRET:cinema-secret-key-12345}
-  admin-username: ${KEYCLOAK_ADMIN_USER:admin}
-  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
-  hmac-secret: ${KEYCLOAK_HMAC_SECRET:teacinema-super-secret-hmac-key-2026}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET}
+  admin-username: ${KEYCLOAK_ADMIN_USER}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD}
+  hmac-secret: ${KEYCLOAK_HMAC_SECRET}
 
 management:
   endpoints:
