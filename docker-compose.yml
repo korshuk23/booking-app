@@ -182,6 +182,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      - REDIS_PORT=6379
       - DB_HOST=postgres-db
       - DB_PORT=5432
       - DB_USERNAME=${POSTGRES_USER}

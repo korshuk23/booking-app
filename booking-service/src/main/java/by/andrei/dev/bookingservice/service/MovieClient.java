@@ -36,6 +36,8 @@ public class MovieClient {
 
     public MovieResponse fallbackGetMovieInfo(UUID movieId, Throwable t) {
         log.error("Circuit Breaker opened! Fallback for movie {}. Reason: {}", movieId, t.getMessage());
-        throw new RuntimeException("Каталог фильмов временно недоступен. Попробуйте позже.");
-    }
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "Film catalog is unavailable. Try later. "
+        );    }
 }

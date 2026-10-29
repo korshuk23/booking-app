@@ -70,12 +70,12 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-    tracing:
-      sampling:
-        probability: 1.0 # В проде ставят 0.1 (10%), для тестов пишем 100% трейсов
+  tracing:
+    sampling:
+      probability: 0.1
     otlp:
       tracing:
-        endpoint: http://${TEMPO_HOST:localhost}:4318/v1/traces # Куда шлем трейсы (Tempo)
+        endpoint: http://${TEMPO_HOST:localhost}:4318/v1/traces
 
 logging:
   pattern:

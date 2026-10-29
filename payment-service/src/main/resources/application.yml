@@ -52,7 +52,7 @@ management:
       application: ${spring.application.name}
   tracing:
     sampling:
-      probability: 1.0
+      probability: 0.1
   otlp:
     tracing:
       endpoint: http://${TEMPO_HOST:localhost}:4318/v1/traces

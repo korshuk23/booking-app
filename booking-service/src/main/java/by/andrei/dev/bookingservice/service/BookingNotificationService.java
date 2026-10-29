@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 @Service
 @Slf4j
@@ -43,20 +45,17 @@ public class BookingNotificationService {
     @Value("${booking.sse.max-emitters:50000}")
     private long maxEmitters;
 
-    private Cache<UUID, SseEmitter> emitterCache;
+    private Cache<UUID, CopyOnWriteArraySet<SseEmitter>> emitterCache;
 
     @PostConstruct
     void initCache() {
         this.emitterCache = Caffeine.newBuilder()
                 .maximumSize(maxEmitters)
                 .expireAfterWrite(Duration.ofMinutes(cacheTtlMinutes))
-                .removalListener((UUID key, SseEmitter emitter, RemovalCause cause) -> {
-                    if (cause.wasEvicted() && emitter != null) {
+                .removalListener((key, value, cause) -> {
+                    if (cause.wasEvicted() && value != null) {
                         log.warn("SseEmitter for booking {} forcibly evicted from cache! Reason: {}", key, cause);
-                        try {
-                            emitter.complete();
-                        } catch (Exception ignored) {
-                        }
+                        ((CopyOnWriteArraySet<SseEmitter>) value).forEach(SseEmitter::complete);
                     }
                 })
                 .build();
@@ -72,36 +71,31 @@ public class BookingNotificationService {
         }
 
         SseEmitter emitter = new SseEmitter(sseTimeoutMs);
+        CopyOnWriteArraySet<SseEmitter> emitters = emitterCache.get(bookingId, k -> new CopyOnWriteArraySet<>());
+        emitters.add(emitter);
 
-        emitter.onCompletion(() -> {
-            log.debug("SSE connection completed for booking: {}", bookingId);
-            emitterCache.invalidate(bookingId);
-        });
 
-        emitter.onTimeout(() -> {
-            log.warn("SSE connection timed out for booking: {}", bookingId);
-            emitter.complete();
-            emitterCache.invalidate(bookingId);
-        });
-
-        emitter.onError(e -> {
-            log.debug("SSE network connection terminated/error for booking {}: {}", bookingId, e.getMessage());
-            emitterCache.invalidate(bookingId);
-        });
-
-        emitterCache.put(bookingId, emitter);
+        Runnable removeCallback = () -> emitters.remove(emitter);
+        emitter.onCompletion(removeCallback);
+        emitter.onTimeout(removeCallback);
+        emitter.onError(e -> removeCallback.run());
 
         try {
             emitter.send(SseEmitter.event()
                     .name("INIT")
                     .data(Map.of(
                             "bookingId", bookingId,
-                            "status", "PENDING",
-                            "message", "Subscribed to booking updates"
+                            "status", booking.getStatus().name(),
+                            "message", "Subscribed to real-time updates"
                     )));
+
+            if (booking.getStatus() == Booking.BookingStatus.CONFIRMED ||
+                    booking.getStatus() == Booking.BookingStatus.CANCELLED ||
+                    booking.getStatus() == Booking.BookingStatus.REJECTED) {
+                emitter.complete();
+            }
         } catch (IOException e) {
-            log.error("Failed to send INIT SSE event for booking {}", bookingId, e);
-            emitterCache.invalidate(bookingId);
+            emitters.remove(emitter);
         }
 
         return emitter;
@@ -138,26 +132,25 @@ public class BookingNotificationService {
     public void handleClusterNotification(String messageJson) {
         try {
             BookingNotificationDto dto = objectMapper.readValue(messageJson, BookingNotificationDto.class);
+            CopyOnWriteArraySet<SseEmitter> emitters = emitterCache.getIfPresent(dto.getBookingId());
 
-            SseEmitter emitter = emitterCache.getIfPresent(dto.getBookingId());
-            if (emitter != null) {
-                log.info("Match found! Pushing SSE to client on this instance for booking {}", dto.getBookingId());
-                emitter.send(SseEmitter.event()
-                        .name("STATUS_UPDATE")
-                        .data(Map.of(
-                                "bookingId", dto.getBookingId(),
-                                "status", dto.getStatus(),
-                                "message", dto.getMessage()
-                        )));
-                if ("CONFIRMED".equals(dto.getStatus()) || "CANCELLED".equals(dto.getStatus()) ||
-                        "REJECTED".equals(dto.getStatus())) {
-                    emitter.complete();
-                    emitterCache.invalidate(dto.getBookingId());
+            if (emitters != null) {
+                for (SseEmitter emitter : emitters) {
+                    try {
+                        emitter.send(SseEmitter.event().name("STATUS_UPDATE").data(dto));
+                        if (isTerminalStatus(dto.getStatus())) emitter.complete();
+                    } catch (Exception ignored) {
+                        emitters.remove(emitter);
+                    }
                 }
             }
         } catch (Exception e) {
             log.error("Error processing cluster notification from Redis", e);
         }
+    }
+
+    private boolean isTerminalStatus(String status) {
+        return "CONFIRMED".equals(status) || "CANCELLED".equals(status) || "REJECTED".equals(status);
     }
 
     @Scheduled(fixedRateString = "${booking.sse.heartbeat-rate-ms:15000}")
@@ -166,14 +159,14 @@ public class BookingNotificationService {
             return;
         }
 
-        log.trace("Broadcasting SSE heartbeat to {} active client(s)", emitterCache.estimatedSize());
-
-        emitterCache.asMap().forEach((bookingId, emitter) -> {
-            try {
-                emitter.send(SseEmitter.event().comment("ping"));
-            } catch (Exception ex) {
-                log.debug("Heartbeat detected closed connection for booking {}. Removing.", bookingId);
-                emitterCache.invalidate(bookingId);
+        if (emitterCache == null) return;
+        emitterCache.asMap().forEach((bookingId, emitters) -> {
+            for (SseEmitter emitter : emitters) {
+                try {
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception ex) {
+                    emitters.remove(emitter);
+                }
             }
         });
     }
