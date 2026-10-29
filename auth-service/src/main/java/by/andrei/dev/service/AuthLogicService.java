@@ -1,7 +1,6 @@
 package by.andrei.dev.service;
 
 import by.andrei.dev.entity.User;
-import by.andrei.dev.repository.OtpRepository;
 import by.andrei.dev.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
