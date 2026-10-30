@@ -2,6 +2,7 @@ package by.andrei.dev.paymentservice.repository;
 
 import by.andrei.dev.paymentservice.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,4 +21,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Query(value = "SELECT * FROM payments WHERE status = 'PENDING' AND created_at < :threshold " +
             "ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED", nativeQuery = true)
     List<Payment> findStuckPendingForUpdate(@Param("threshold") LocalDateTime threshold);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Payment p SET p.status = :to, p.failureReason = :reason WHERE p.id = :id AND p.status = 'PENDING'")
+    int completeIfPending(@Param("id") UUID id, @Param("to") String to, @Param("reason") String reason);
 }

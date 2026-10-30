@@ -61,8 +61,9 @@ class AuthLogicServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        Assertions.assertNotNull(redisTemplate.getConnectionFactory());
-        redisTemplate.getConnectionFactory().getConnection().serverCommands();
+        try (var conn = redisTemplate.getRequiredConnectionFactory().getConnection()) {
+            conn.serverCommands().flushAll();
+        }
         when(keycloakIntegrationService.generateHmacPassword(anyString())).thenReturn("mock-hmac");
     }
 

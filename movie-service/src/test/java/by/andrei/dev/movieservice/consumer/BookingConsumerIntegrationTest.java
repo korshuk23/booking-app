@@ -350,4 +350,28 @@ public class BookingConsumerIntegrationTest {
         assertThat(outbox).hasSize(1);
         assertThat(outbox.get(0).getEventType()).isEqualTo("ORPHANED_PAYMENT");
     }
+
+    @Test
+    @DisplayName("Сценарий 11 (Идемпотентность): повторный SUCCESS не превращается в ORPHANED_PAYMENT")
+    void shouldIgnoreDuplicateSuccessForAlreadyBookedSeat() {
+        UUID bookingId = UUID.randomUUID();
+        Seat seat = seatRepository.findById(testSeatId).orElseThrow();
+        seat.setStatus(Seat.SeatStatus.RESERVED);
+        seat.setBookingId(bookingId);
+        seat.setReservedAt(LocalDateTime.now());
+        seat.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        seatRepository.saveAndFlush(seat);
+
+        PaymentEvent success = PaymentEvent.builder()
+                .bookingId(bookingId).seatId(testSeatId)
+                .sessionId(testSessionId).status("SUCCESS")
+                .amount(BigDecimal.valueOf(15.00)).build();
+
+        bookingConsumer.handlePaymentCompensation(success);
+        bookingConsumer.handlePaymentCompensation(success);
+
+        assertThat(seatRepository.findById(testSeatId).orElseThrow().getStatus()).isEqualTo(Seat.SeatStatus.BOOKED);
+        assertThat(outboxRepository.findAll()).extracting(OutboxEvent::getEventType)
+                .containsExactly("CONFIRMED");
+    }
 }

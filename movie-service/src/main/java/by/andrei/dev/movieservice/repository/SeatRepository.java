@@ -20,6 +20,8 @@ public interface SeatRepository extends JpaRepository<Seat, UUID> {
         UUID getBookingId();
     }
 
+    boolean existsByIdAndBookingIdAndStatus(UUID id, UUID bookingId, Seat.SeatStatus status);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE seats

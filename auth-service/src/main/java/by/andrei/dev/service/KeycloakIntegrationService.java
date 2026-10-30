@@ -146,7 +146,9 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
-            assert response != null;
+            if (response == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from IdP");
+            }
             return mapTokenResponse(response);
         } catch (org.springframework.web.client.HttpClientErrorException.BadRequest |
                  org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
@@ -180,7 +182,9 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
-            assert response != null;
+            if (response == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from IdP");
+            }
             return mapTokenResponse(response);
         } catch (Exception e) {
             log.warn("Invalid or expired refresh token: {}", e.getMessage());

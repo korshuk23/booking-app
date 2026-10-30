@@ -139,25 +139,21 @@ public class PaymentService {
     @Scheduled(fixedDelay = 60000)
     public void reconcilePendingPayments() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
-
         List<Payment> stuckPayments = paymentRepository.findByStatusAndCreatedAtBefore("PENDING", threshold);
 
         for (Payment p : stuckPayments) {
             log.warn("Reconciling stuck payment: {}", p.getId());
             UUID chargeKey = UUID.nameUUIDFromBytes(("charge:" + p.getId()).getBytes(StandardCharsets.UTF_8));
-
             String pspStatus = paymentGateway.checkStatus(chargeKey);
 
             if ("SUCCESS".equals(pspStatus) || "FAILED".equals(pspStatus)) {
                 txTemplate.executeWithoutResult(txStatus -> {
-                    Payment lockedPayment = paymentRepository.findById(p.getId()).orElseThrow();
-                    if (!"PENDING".equals(lockedPayment.getStatus())) return;
+                    String reason = "FAILED".equals(pspStatus) ? "Failed on PSP side during reconciliation" : null;
 
-                    lockedPayment.setStatus(pspStatus);
-                    if ("FAILED".equals(pspStatus)) lockedPayment.setFailureReason("Failed on PSP side");
-                    paymentRepository.save(lockedPayment);
-                    saveOutboxEvent(lockedPayment);
-                    log.info("Payment {} reconciled to {}", p.getId(), pspStatus);
+                    if (paymentRepository.completeIfPending(p.getId(), pspStatus, reason) == 1) {
+                        saveOutboxEvent(paymentRepository.findById(p.getId()).orElseThrow());
+                        log.info("Payment {} reconciled to {}", p.getId(), pspStatus);
+                    }
                 });
             }
         }

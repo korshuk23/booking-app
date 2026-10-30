@@ -4,6 +4,7 @@ import by.andrei.dev.core.dto.BookingEvent;
 import by.andrei.dev.core.dto.BookingStatusEvent;
 import by.andrei.dev.core.dto.PaymentEvent;
 import by.andrei.dev.movieservice.entity.OutboxEvent;
+import by.andrei.dev.movieservice.entity.Seat;
 import by.andrei.dev.movieservice.repository.MovieSessionRepository;
 import by.andrei.dev.movieservice.repository.OutboxRepository;
 import by.andrei.dev.movieservice.repository.SeatRepository;
@@ -42,6 +43,8 @@ public class BookingConsumer {
             if (finalizedRows == 1) {
                 log.info("Seat {} finalized to BOOKED for booking {}", event.getSeatId(), event.getBookingId());
                 emitStatusEvent(event, "CONFIRMED", "Ticket issued successfully");
+            } else if (seatRepository.existsByIdAndBookingIdAndStatus(event.getSeatId(), event.getBookingId(), Seat.SeatStatus.BOOKED)) {
+                log.info("Duplicate SUCCESS for booking {}: seat already BOOKED, ignoring", event.getBookingId());
             } else {
                 log.error("CRITICAL RACE: Payment {} succeeded but seat {} is gone!", event.getPaymentId(), event.getSeatId());
                 emitStatusEvent(event, "ORPHANED_PAYMENT", "Payment arrived late. Initiating refund.");
