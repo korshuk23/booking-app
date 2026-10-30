@@ -2,6 +2,7 @@ package by.andrei.dev.authservice;
 
 import by.andrei.dev.service.AuthLogicService;
 import by.andrei.dev.service.KeycloakIntegrationService;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,18 +61,16 @@ class AuthLogicServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        redisTemplate.getConnectionFactory().getConnection().flushAll();
-        // Мокаем успешную генерацию токена
+        Assertions.assertNotNull(redisTemplate.getConnectionFactory());
+        redisTemplate.getConnectionFactory().getConnection().serverCommands();
         when(keycloakIntegrationService.generateHmacPassword(anyString())).thenReturn("mock-hmac");
     }
 
     @Test
     @DisplayName("Rate Limiter: Защита от спама OTP (Cooldown)")
     void shouldPreventSpammingOtpRequests() {
-        // Первый запрос успешен
         authLogicService.sendOtp(TEST_PHONE, TEST_IP);
 
-        // Второй запрос в ту же минуту должен быть заблокирован (429)
         assertThatThrownBy(() -> authLogicService.sendOtp(TEST_PHONE, TEST_IP))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("429 TOO_MANY_REQUESTS");
@@ -82,11 +81,9 @@ class AuthLogicServiceIntegrationTest {
     void shouldBurnOtpAfter5FailedAttempts() {
         authLogicService.sendOtp(TEST_PHONE, TEST_IP);
 
-        // Достаем сгенерированный код напрямую из Redis для проверки
         String realCode = redisTemplate.opsForValue().get("otp:code:" + TEST_PHONE);
         assertThat(realCode).isNotNull();
 
-        // Делаем 4 неверные попытки (код всё еще жив)
         for (int i = 0; i < 4; i++) {
             assertThatThrownBy(() -> authLogicService.verifyOtpAndGenerateToken(TEST_PHONE, "000000", TEST_IP))
                     .isInstanceOf(ResponseStatusException.class)
@@ -94,12 +91,10 @@ class AuthLogicServiceIntegrationTest {
         }
         assertThat(redisTemplate.hasKey("otp:code:" + TEST_PHONE)).isTrue();
 
-        // 5-я неверная попытка СЖИГАЕТ КОД
         assertThatThrownBy(() -> authLogicService.verifyOtpAndGenerateToken(TEST_PHONE, "000000", TEST_IP))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("401 UNAUTHORIZED");
 
-        // Убеждаемся, что настоящий код удален
         assertThat(redisTemplate.hasKey("otp:code:" + TEST_PHONE)).isFalse();
     }
 }

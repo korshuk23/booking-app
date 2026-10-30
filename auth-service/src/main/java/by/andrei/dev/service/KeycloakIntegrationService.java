@@ -146,6 +146,7 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
+            assert response != null;
             return mapTokenResponse(response);
         } catch (org.springframework.web.client.HttpClientErrorException.BadRequest |
                  org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
@@ -179,6 +180,7 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
+            assert response != null;
             return mapTokenResponse(response);
         } catch (Exception e) {
             log.warn("Invalid or expired refresh token: {}", e.getMessage());
@@ -213,6 +215,7 @@ public class KeycloakIntegrationService {
                     .retrieve()
                     .body(Map.class);
 
+            assert response != null;
             return (String) response.get("access_token");
         } catch (Exception e) {
             log.error("Failed to authenticate as Keycloak admin via admin-cli", e);

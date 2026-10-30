@@ -18,6 +18,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByStatusAndCreatedAtBefore(String status, LocalDateTime time);
 
     @Query(value = "SELECT * FROM payments WHERE status = 'PENDING' AND created_at < :threshold " +
-            "ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED", nativeQuery = true)
+            "ORDER BY created_at LIMIT 50 FOR UPDATE SKIP LOCKED", nativeQuery = true)
     List<Payment> findStuckPendingForUpdate(@Param("threshold") LocalDateTime threshold);
 }

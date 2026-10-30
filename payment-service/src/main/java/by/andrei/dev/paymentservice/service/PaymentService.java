@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -96,21 +95,24 @@ public class PaymentService {
             Payment p = paymentRepository.findByBookingId(bookingId)
                     .orElseThrow(() -> new IllegalStateException("Payment not found for booking: " + bookingId));
 
-            switch (p.getStatus()) {
-                case "SUCCESS":
+            return switch (p.getStatus()) {
+                case "SUCCESS" -> {
                     p.setStatus("REFUND_PENDING");
-                    return paymentRepository.save(p);
-                case "REFUND_PENDING":
+                    yield paymentRepository.save(p);
+                }
+                case "REFUND_PENDING" -> {
                     log.info("Resuming stuck refund for payment {}", p.getId());
-                    return p;
-                case "REFUNDED":
-                case "REFUND_FAILED":
+                    yield p;
+                }
+                case "REFUNDED", "REFUND_FAILED" -> {
                     log.warn("Payment {} already processed refund. Status: {}", p.getId(), p.getStatus());
-                    return null;
-                default:
+                    yield null;
+                }
+                default -> {
                     log.warn("Cannot refund payment {} with status {}", p.getId(), p.getStatus());
-                    return null;
-            }
+                    yield null;
+                }
+            };
         });
 
         if (payment == null) return;
