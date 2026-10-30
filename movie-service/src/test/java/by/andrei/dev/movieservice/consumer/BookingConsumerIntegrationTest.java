@@ -134,8 +134,8 @@ public class BookingConsumerIntegrationTest {
 
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(1);
-        assertThat(outbox.get(0).getEventType()).isEqualTo("SEATS_RESERVED");
-        assertThat(outbox.get(0).getStatus()).isEqualTo("PENDING");
+        assertThat(outbox.getFirst().getEventType()).isEqualTo("SEATS_RESERVED");
+        assertThat(outbox.getFirst().getStatus()).isEqualTo("PENDING");
     }
 
     @Test
@@ -273,7 +273,7 @@ public class BookingConsumerIntegrationTest {
 
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(1);
-        assertThat(outbox.get(0).getEventType()).isEqualTo("BOOKING_CANCELLED");
+        assertThat(outbox.getFirst().getEventType()).isEqualTo("BOOKING_CANCELLED");
     }
 
 
@@ -295,8 +295,8 @@ public class BookingConsumerIntegrationTest {
         // Then: в Outbox лежит событие об отказе с понятной причиной
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(1);
-        assertThat(outbox.get(0).getEventType()).isEqualTo("REJECTED");
-        assertThat(outbox.get(0).getPayload()).contains("Seat is not available");
+        assertThat(outbox.getFirst().getEventType()).isEqualTo("REJECTED");
+        assertThat(outbox.getFirst().getPayload()).contains("Seat is not available");
     }
 
     @Test
@@ -348,7 +348,7 @@ public class BookingConsumerIntegrationTest {
 
         List<OutboxEvent> outbox = outboxRepository.findAll();
         assertThat(outbox).hasSize(1);
-        assertThat(outbox.get(0).getEventType()).isEqualTo("ORPHANED_PAYMENT");
+        assertThat(outbox.getFirst().getEventType()).isEqualTo("ORPHANED_PAYMENT");
     }
 
     @Test
