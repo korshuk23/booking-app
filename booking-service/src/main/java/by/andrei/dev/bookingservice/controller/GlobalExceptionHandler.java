@@ -56,8 +56,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty("timestamp", Instant.now());
             return problem;
         }
+
         log.error("Database integrity violation: {}", cause);
-        throw ex;
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Внутренняя ошибка базы данных.");
+        problem.setTitle("Database Error");
+        return problem;
     }
 
     @ExceptionHandler(IllegalStateException.class)
@@ -77,6 +80,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "An unexpected internal error occurred. Please contact support.");
         problem.setTitle("Internal Server Error");
         problem.setType(URI.create("https://teacinema.dev/errors/internal"));
+        problem.setProperty("timestamp", Instant.now());
+        return problem;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Invalid input: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Bad Request");
         problem.setProperty("timestamp", Instant.now());
         return problem;
     }

@@ -117,6 +117,8 @@ public class KeycloakIntegrationService {
 
             log.info("User '{}' successfully registered atomically in Keycloak", identifier);
 
+        } catch (org.springframework.web.client.HttpClientErrorException.Conflict e) {
+            log.info("User '{}' was created concurrently by another process. Skipping.", identifier);
         } catch (Exception e) {
             log.error("Error setting up user in Keycloak: {}", e.getMessage(), e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to synchronize user with Identity Provider");

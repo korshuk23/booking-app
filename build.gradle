@@ -41,6 +41,8 @@ subprojects {
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
         tasks.named('test') {
             useJUnitPlatform()
+            // WORKAROUND: Fixes Testcontainers BadRequestException on Windows Docker Engine 29+
+            // by forcing API version 1.44 instead of legacy 1.32.
             systemProperty 'api.version', '1.44'
         }
     }
